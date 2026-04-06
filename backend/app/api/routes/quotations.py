@@ -198,3 +198,68 @@ async def _get_project(project_id: UUID, db: AsyncSession) -> Project:
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+@router.post("/compare-schemes")
+async def generate_scheme_comparison(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Generate A/B/C scheme comparison from pipeline outputs."""
+    from app.core.llm import get_llm_client
+    from app.services.scheme_comparison import generate_multi_scheme_comparison
+
+    project = await _get_project(project_id, db)
+
+    # Load required stage outputs
+    stages_needed = {1: "requirements", 5: "solution", 8: "cost_model"}
+    stage_data = {}
+    for num, label in stages_needed.items():
+        result = await db.execute(
+            select(ProjectStage).where(
+                ProjectStage.project_id == project_id,
+                ProjectStage.stage_number == num,
+                ProjectStage.status == "completed",
+            )
+        )
+        stage = result.scalar_one_or_none()
+        if not stage or not stage.output_data:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Stage {num} ({label}) not completed. Run pipeline first.",
+            )
+        stage_data[num] = stage.output_data
+
+    llm = get_llm_client()
+    comparison = await generate_multi_scheme_comparison(
+        base_solution=stage_data[5],
+        base_cost=stage_data[8],
+        requirements=stage_data[1],
+        llm=llm,
+    )
+
+    # Create quotation records for each scheme
+    for scheme_id, scheme_data in comparison.get("schemes", {}).items():
+        if "error" in scheme_data:
+            continue
+        indicators = scheme_data.get("financial_indicators", {})
+        cost = scheme_data.get("cost_summary", {})
+
+        q = Quotation(
+            project_id=project_id,
+            version=1,
+            scheme_name=scheme_data.get("scheme_name", f"方案{scheme_id}"),
+            cost_breakdown=scheme_data,
+            total_cost=cost.get("annual_opex"),
+            total_price=cost.get("annual_opex"),
+            roi=indicators.get("roi_percent"),
+            irr=indicators.get("irr_percent"),
+            npv=indicators.get("npv_at_8pct"),
+            payback_months=indicators.get("payback_months"),
+            status="draft",
+        )
+        db.add(q)
+
+    await db.flush()
+    return comparison

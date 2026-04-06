@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
   title: "物流售前 AI 系统",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className="min-h-screen bg-gray-50">{children}</body>
+      <body className="min-h-screen bg-gray-50">
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }

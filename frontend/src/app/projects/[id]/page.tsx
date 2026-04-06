@@ -185,6 +185,10 @@ export default function ProjectDetailPage() {
               <p className="text-sm text-gray-500">{project.client_name || "未指定客户"} · {project.industry || ""}</p>
             </div>
             <div className="flex items-center gap-3">
+              <Link href={`/projects/${id}/workbench`}
+                className="px-4 py-2 text-sm text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition">
+                📊 方案对比
+              </Link>
               <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden" onChange={handleUpload} />
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
