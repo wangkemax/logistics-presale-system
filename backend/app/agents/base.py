@@ -49,10 +49,33 @@ class BaseAgent(ABC):
         self,
         input_data: dict,
         project_context: dict,
+        use_cache: bool = True,
     ) -> AgentOutput:
-        """Run the agent with timeout, error handling, and output validation."""
+        """Run the agent with caching, timeout, error handling, and output validation."""
+        from app.services.agent_cache import get_agent_cache
+
         start = time.time()
         logger.info("agent_started", agent=self.name, stage=self.stage_number)
+
+        # ── Check cache ──
+        if use_cache:
+            try:
+                cache = get_agent_cache()
+                cached = await cache.get(self.name, input_data, project_context)
+                if cached:
+                    elapsed = time.time() - start
+                    logger.info("agent_cache_hit", agent=self.name, elapsed=f"{elapsed:.3f}s")
+                    return AgentOutput(
+                        stage_number=self.stage_number,
+                        agent_name=self.name,
+                        status="success",
+                        data=cached,
+                        confidence=cached.get("_confidence", 0.8),
+                        issues=[],
+                        execution_time_seconds=round(elapsed, 2),
+                    )
+            except Exception:
+                pass  # Cache miss or error, proceed normally
 
         try:
             result = await asyncio.wait_for(
@@ -72,6 +95,14 @@ class BaseAgent(ABC):
                 issues=issues,
                 execution_time_seconds=round(elapsed, 2),
             )
+
+            # ── Store in cache ──
+            if use_cache and output.status == "success":
+                try:
+                    cache = get_agent_cache()
+                    await cache.set(self.name, input_data, project_context, result)
+                except Exception:
+                    pass
 
             logger.info(
                 "agent_completed",
