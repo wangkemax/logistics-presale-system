@@ -11,6 +11,7 @@ from app.core.database import engine, Base
 from app.api.routes import auth, projects
 from app.api.routes import quotations as quotations_routes
 from app.api.routes import knowledge as knowledge_routes
+from app.api.routes import documents as documents_routes
 from app.services.websocket_service import router as ws_router, manager as ws_manager
 
 settings = get_settings()
@@ -65,6 +66,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(quotations_routes.router, prefix="/api/v1")
 app.include_router(knowledge_routes.router, prefix="/api/v1")
+app.include_router(documents_routes.router, prefix="/api/v1")
 app.include_router(ws_router)
 
 
