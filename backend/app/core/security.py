@@ -1,5 +1,6 @@
 """JWT token creation, verification, and password hashing."""
 
+import os
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
@@ -12,6 +13,8 @@ from app.core.config import get_settings
 settings = get_settings()
 
 # ── Password hashing ──
+# Fix bcrypt 4.1+ compatibility with passlib on Python 3.12
+os.environ["BCRYPT_HANDLE_LONG_PASSWORDS"] = "1"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── JWT config ──
@@ -22,11 +25,11 @@ security = HTTPBearer()
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(password[:72])
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(plain[:72], hashed)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
