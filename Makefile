@@ -60,6 +60,10 @@ test:
 test-e2e:
 	cd backend && python tests/test_e2e.py
 
+# Integration tests (20 steps)
+test-integration:
+	cd backend && python tests/test_integration.py
+
 # Seed knowledge base
 seed:
 	cd backend && python -m app.scripts.seed_knowledge

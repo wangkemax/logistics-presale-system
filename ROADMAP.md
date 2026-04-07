@@ -89,7 +89,7 @@
 | **性能** | 数据库索引优化 | ✅ 完成 | 7 个组合索引 (002_indexes) |
 | | LLM 调用优化 | ✅ 完成 | Stage 2/3/4 并行 + Stage 6/7 并行 |
 | **测试** | 单元测试 | ✅ 完成 | 20+ test cases (agents/services/security) |
-| | E2E 测试 | 🔲 待做 | Playwright |
+| | E2E 测试 | ✅ 完成 | 20-step integration test suite |
 | | UAT | 🔲 待做 | 真实招标文件验证 |
 
 ---

@@ -19,6 +19,8 @@ from app.api.routes import editor as editor_routes
 from app.api.routes import prompts as prompts_routes
 from app.api.routes import export as export_routes
 from app.api.routes import templates as templates_routes
+from app.api.routes import batch as batch_routes
+from app.api.routes import preferences as preferences_routes
 from app.api.routes import approval as approval_routes
 from app.api.routes import analytics as analytics_routes
 from app.services.websocket_service import router as ws_router, manager as ws_manager
@@ -79,6 +81,8 @@ app.include_router(editor_routes.router, prefix="/api/v1")
 app.include_router(prompts_routes.router, prefix="/api/v1")
 app.include_router(export_routes.router, prefix="/api/v1")
 app.include_router(templates_routes.router, prefix="/api/v1")
+app.include_router(batch_routes.router, prefix="/api/v1")
+app.include_router(preferences_routes.router, prefix="/api/v1")
 app.include_router(approval_routes.router, prefix="/api/v1")
 app.include_router(analytics_routes.router, prefix="/api/v1")
 app.include_router(ws_router)
