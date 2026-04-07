@@ -18,10 +18,10 @@ settings = get_settings()
 
 # Rate limit configuration: (requests, window_seconds)
 RATE_LIMITS = {
-    "pipeline": (5, 3600),      # 5 pipeline runs per hour
-    "generate": (20, 3600),     # 20 document generations per hour
-    "search": (60, 60),         # 60 searches per minute
-    "default": (120, 60),       # 120 requests per minute for general API
+    "pipeline": (30, 3600),     # 30 pipeline runs per hour
+    "generate": (60, 3600),     # 60 document generations per hour
+    "search": (120, 60),        # 120 searches per minute
+    "default": (300, 60),       # 300 requests per minute for general API
 }
 
 # Map URL patterns to rate limit groups
