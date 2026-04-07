@@ -349,8 +349,8 @@ async def _get_project(project_id: UUID, db: AsyncSession) -> Project:
     return project
 
 
-async def _execute_pipeline_bg(project_id: UUID, doc_text: str):
-    """Background task to execute the full pipeline."""
+async def _execute_pipeline_bg(project_id: UUID, doc_text: str, resume_from: int = 0):
+    """Background task to execute the full pipeline (or resume from a stage)."""
     from app.core.database import AsyncSessionLocal
     from app.core.llm import get_llm_client
 
@@ -360,12 +360,13 @@ async def _execute_pipeline_bg(project_id: UUID, doc_text: str):
             project = result.scalar_one()
 
             orchestrator = PipelineOrchestrator(db, get_llm_client())
-            await orchestrator.run_full_pipeline(project, document_text=doc_text)
+            await orchestrator.run_full_pipeline(
+                project, document_text=doc_text, resume_from=resume_from
+            )
 
             await db.commit()
         except Exception as e:
             await db.rollback()
-            # Update project status to failed
             result = await db.execute(select(Project).where(Project.id == project_id))
             project = result.scalar_one_or_none()
             if project:

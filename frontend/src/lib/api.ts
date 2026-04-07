@@ -143,6 +143,11 @@ export const projects = {
       method: "POST",
     }),
 
+  resumePipeline: (projectId: string) =>
+    request<{ message: string; resume_from: number }>(`/api/v1/projects/${projectId}/resume-pipeline`, {
+      method: "POST",
+    }),
+
   getStages: (projectId: string) =>
     request<Stage[]>(`/api/v1/projects/${projectId}/stages`),
 

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/", label: "项目总览", icon: "📊" },
+  { href: "/analytics", label: "数据看板", icon: "📈" },
   { href: "/knowledge", label: "知识库", icon: "📚" },
   { href: "/settings", label: "系统设置", icon: "⚙️" },
 ];
@@ -38,7 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="px-5 py-4 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400">v0.2.0 · Phase 2</p>
+          <p className="text-[10px] text-gray-400">v0.3.0 · Phase 3</p>
         </div>
       </aside>
 

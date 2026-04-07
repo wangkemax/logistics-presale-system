@@ -80,98 +80,145 @@ class PipelineOrchestrator:
         project: Project,
         document_text: str = "",
         notify_callback=None,
+        resume_from: int = 0,
     ) -> dict:
-        """Run all stages sequentially, respecting QA gates."""
+        """Run all stages sequentially, respecting QA gates.
+        
+        Args:
+            resume_from: Stage number to resume from. Completed stages
+                         will have their outputs loaded from DB instead of re-running.
+        """
         project_context = project.assumptions or {}
         stage_outputs: dict[int, dict] = {}
 
-        # Stage 0: project assumptions (already set)
-        stage_outputs[0] = project_context
-        await self._update_stage(project.id, 0, "completed", project_context)
+        # Load completed stage outputs when resuming
+        if resume_from > 0:
+            logger.info("pipeline_resuming", project_id=str(project.id), resume_from=resume_from)
+            result = await self.db.execute(
+                select(ProjectStage).where(
+                    ProjectStage.project_id == project.id,
+                    ProjectStage.status == "completed",
+                )
+            )
+            for stage in result.scalars().all():
+                if stage.output_data and stage.stage_number < resume_from:
+                    stage_outputs[stage.stage_number] = stage.output_data
+
+        # Stage 0: project assumptions
+        if 0 not in stage_outputs:
+            stage_outputs[0] = project_context
+            await self._update_stage(project.id, 0, "completed", project_context)
 
         if notify_callback:
             await notify_callback("stage_completed", 0)
 
+        # ── Helper to skip completed stages ──
+        def should_run(stage_num: int) -> bool:
+            return stage_num >= resume_from or stage_num not in stage_outputs
+
         # Stage 1: Requirement Extraction (must be first)
-        s1_input = {"document_text": document_text, "file_name": "tender.pdf"}
-        s1_result = await self._run_stage(1, s1_input, project_context, project_id=project.id)
-        stage_outputs[1] = s1_result.data
-        if s1_result.status != "success":
-            return {"status": "failed", "failed_at": 1, "error": s1_result.data}
+        if should_run(1):
+            s1_input = {"document_text": document_text, "file_name": "tender.pdf"}
+            s1_result = await self._run_stage(1, s1_input, project_context, project_id=project.id)
+            stage_outputs[1] = s1_result.data
+            if s1_result.status != "success":
+                return {"status": "failed", "failed_at": 1, "error": s1_result.data}
 
         # ── Parallel batch 1: Stages 2, 3, 4 (all depend only on Stage 1) ──
-        logger.info("parallel_batch_start", batch=1, stages=[2, 3, 4])
-        s2_input = {
-            "requirements": s1_result.data.get("requirements", []),
-            "missing_critical_info": s1_result.data.get("missing_critical_info", []),
-        }
-        s3_input = {"requirements": s1_result.data}
-        s4_input = {"requirements": s1_result.data}
+        stages_to_run_b1 = [s for s in [2, 3, 4] if should_run(s)]
+        if stages_to_run_b1:
+            logger.info("parallel_batch_start", batch=1, stages=stages_to_run_b1)
+            s1_data = stage_outputs.get(1, {})
+            s2_input = {
+                "requirements": s1_data.get("requirements", []),
+                "missing_critical_info": s1_data.get("missing_critical_info", []),
+            }
+            s3_input = {"requirements": s1_data}
+            s4_input = {"requirements": s1_data}
 
-        s2_result, s3_result, s4_result = await asyncio.gather(
-            self._run_stage(2, s2_input, project_context, project_id=project.id),
-            self._run_stage(3, s3_input, project_context, project_id=project.id),
-            self._run_stage(4, s4_input, project_context, project_id=project.id),
-        )
-        stage_outputs[2] = s2_result.data
-        stage_outputs[3] = s3_result.data
-        stage_outputs[4] = s4_result.data
+            tasks = []
+            for s in [2, 3, 4]:
+                inp = {2: s2_input, 3: s3_input, 4: s4_input}[s]
+                if should_run(s):
+                    tasks.append(self._run_stage(s, inp, project_context, project_id=project.id))
+                else:
+                    tasks.append(asyncio.coroutine(lambda d=stage_outputs.get(s, {}): AgentOutput(stage_number=s, agent_name="cached", status="success", data=d, confidence=1.0))())
+
+            results_b1 = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, s in enumerate([2, 3, 4]):
+                r = results_b1[i]
+                if not isinstance(r, Exception):
+                    stage_outputs[s] = r.data
 
         # Stage 5: Logistics Architecture (depends on 1, 3, 4)
-        s5_input = {
-            "requirements": s1_result.data,
-            "knowledge_context": s4_result.data.get("synthesized_context", ""),
-            "data_analysis": s3_result.data,
-        }
-        s5_result = await self._run_stage(5, s5_input, project_context, project_id=project.id)
-        stage_outputs[5] = s5_result.data
+        if should_run(5):
+            s5_input = {
+                "requirements": stage_outputs.get(1, {}),
+                "knowledge_context": stage_outputs.get(4, {}).get("synthesized_context", ""),
+                "data_analysis": stage_outputs.get(3, {}),
+            }
+            s5_result = await self._run_stage(5, s5_input, project_context, project_id=project.id)
+            stage_outputs[5] = s5_result.data
 
-        # ── Parallel batch 2: Stages 6, 7 (both depend on 5 + earlier) ──
-        logger.info("parallel_batch_start", batch=2, stages=[6, 7])
-        s6_input = {
-            "requirements": s1_result.data,
-            "solution_design": s5_result.data,
-            "automation_knowledge": s4_result.data.get("retrieved_knowledge", {}).get("automation_cases", ""),
-        }
-        s7_input = {
-            "requirements": s1_result.data,
-            "knowledge_cases": s4_result.data.get("retrieved_knowledge", {}).get("logistics_cases", ""),
-        }
+        # ── Parallel batch 2: Stages 6, 7 ──
+        stages_to_run_b2 = [s for s in [6, 7] if should_run(s)]
+        if stages_to_run_b2:
+            logger.info("parallel_batch_start", batch=2, stages=stages_to_run_b2)
+            s6_input = {
+                "requirements": stage_outputs.get(1, {}),
+                "solution_design": stage_outputs.get(5, {}),
+                "automation_knowledge": stage_outputs.get(4, {}).get("retrieved_knowledge", {}).get("automation_cases", ""),
+            }
+            s7_input = {
+                "requirements": stage_outputs.get(1, {}),
+                "knowledge_cases": stage_outputs.get(4, {}).get("retrieved_knowledge", {}).get("logistics_cases", ""),
+            }
 
-        s6_result, s7_result = await asyncio.gather(
-            self._run_stage(6, s6_input, project_context, project_id=project.id),
-            self._run_stage(7, s7_input, project_context, project_id=project.id),
-        )
-        stage_outputs[6] = s6_result.data
-        stage_outputs[7] = s7_result.data
+            tasks2 = []
+            for s in [6, 7]:
+                inp = {6: s6_input, 7: s7_input}[s]
+                if should_run(s):
+                    tasks2.append(self._run_stage(s, inp, project_context, project_id=project.id))
+                else:
+                    tasks2.append(asyncio.coroutine(lambda d=stage_outputs.get(s, {}): AgentOutput(stage_number=s, agent_name="cached", status="success", data=d, confidence=1.0))())
+
+            results_b2 = await asyncio.gather(*tasks2, return_exceptions=True)
+            for i, s in enumerate([6, 7]):
+                r = results_b2[i]
+                if not isinstance(r, Exception):
+                    stage_outputs[s] = r.data
 
         # Stage 8: Cost Model
-        s8_input = {
-            "requirements": s1_result.data,
-            "solution_design": s5_result.data,
-            "automation_recommendations": s6_result.data,
-            "cost_references": s4_result.data.get("retrieved_knowledge", {}).get("cost_references", ""),
-        }
-        s8_result = await self._run_stage(8, s8_input, project_context, project_id=project.id)
-        stage_outputs[8] = s8_result.data
+        if should_run(8):
+            s8_input = {
+                "requirements": stage_outputs.get(1, {}),
+                "solution_design": stage_outputs.get(5, {}),
+                "automation_recommendations": stage_outputs.get(6, {}),
+                "cost_references": stage_outputs.get(4, {}).get("retrieved_knowledge", {}).get("cost_references", ""),
+            }
+            s8_result = await self._run_stage(8, s8_input, project_context, project_id=project.id)
+            stage_outputs[8] = s8_result.data
 
         # Stage 9: Risk & Compliance
-        s9_input = {
-            "requirements": s1_result.data,
-            "solution_design": s5_result.data,
-        }
-        s9_result = await self._run_stage(9, s9_input, project_context, project_id=project.id)
-        stage_outputs[9] = s9_result.data
+        if should_run(9):
+            s9_input = {
+                "requirements": stage_outputs.get(1, {}),
+                "solution_design": stage_outputs.get(5, {}),
+            }
+            s9_result = await self._run_stage(9, s9_input, project_context, project_id=project.id)
+            stage_outputs[9] = s9_result.data
 
         # Stage 10: Tender Writing
-        s10_input = {"all_stage_outputs": stage_outputs}
-        s10_result = await self._run_stage(10, s10_input, project_context, project_id=project.id)
-        stage_outputs[10] = s10_result.data
+        if should_run(10):
+            s10_input = {"all_stage_outputs": stage_outputs}
+            s10_result = await self._run_stage(10, s10_input, project_context, project_id=project.id)
+            stage_outputs[10] = s10_result.data
 
         # Stage 11: QA Gate
-        s11_input = {"all_stage_outputs": stage_outputs}
-        s11_result = await self._run_stage(11, s11_input, project_context, project_id=project.id)
-        stage_outputs[11] = s11_result.data
+        if should_run(11):
+            s11_input = {"all_stage_outputs": stage_outputs}
+            s11_result = await self._run_stage(11, s11_input, project_context, project_id=project.id)
+            stage_outputs[11] = s11_result.data
 
         # Store QA issues
         qa_verdict = s11_result.data.get("overall_verdict", "FAIL")

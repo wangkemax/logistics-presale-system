@@ -14,6 +14,7 @@ from app.core.security import get_current_user
 from app.models.models import Project, ProjectStage, TenderDocument
 from app.services.tender_docx import generate_tender_docx
 from app.services.ppt_generator import generate_solution_pptx
+from app.services.pdf_export import generate_pdf_from_stages
 from app.services.storage_service import get_storage_service
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"])
@@ -73,8 +74,12 @@ async def generate_document(
         file_bytes = await generate_solution_pptx(stage_outputs, project_info)
         filename = f"{project.name}_方案汇报.pptx"
         content_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    elif request.doc_type == "pdf":
+        file_bytes = await generate_pdf_from_stages(stage_outputs, project_info)
+        filename = f"{project.name}_报告.pdf"
+        content_type = "application/pdf"
     else:
-        raise HTTPException(status_code=400, detail="doc_type must be 'tender' or 'ppt'")
+        raise HTTPException(status_code=400, detail="doc_type must be 'tender', 'ppt', or 'pdf'")
 
     # Save record to DB
     storage = get_storage_service()

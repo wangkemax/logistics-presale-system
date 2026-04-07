@@ -313,3 +313,61 @@ class TestSecurity:
         from fastapi import HTTPException
         with pytest.raises(HTTPException):
             decode_access_token("invalid.token.here")
+
+
+# ──────────────────────────────────────────
+# Encryption tests
+# ──────────────────────────────────────────
+
+class TestEncryption:
+
+    def test_encrypt_decrypt_roundtrip(self):
+        from app.core.encryption import FieldEncryptor
+        enc = FieldEncryptor("test-secret-key-for-testing")
+        plaintext = "sensitive data 123"
+        encrypted = enc.encrypt(plaintext)
+        assert encrypted != plaintext
+        assert enc.decrypt(encrypted) == plaintext
+
+    def test_encrypt_empty_string(self):
+        from app.core.encryption import FieldEncryptor
+        enc = FieldEncryptor("test-key")
+        assert enc.encrypt("") == ""
+        assert enc.decrypt("") == ""
+
+    def test_is_encrypted(self):
+        from app.core.encryption import FieldEncryptor
+        enc = FieldEncryptor("test-key")
+        encrypted = enc.encrypt("hello")
+        assert enc.is_encrypted(encrypted)
+        assert not enc.is_encrypted("plain text")
+
+    def test_different_keys_produce_different_ciphertexts(self):
+        from app.core.encryption import FieldEncryptor
+        enc1 = FieldEncryptor("key-1")
+        enc2 = FieldEncryptor("key-2")
+        c1 = enc1.encrypt("same data")
+        c2 = enc2.encrypt("same data")
+        assert c1 != c2
+
+
+# ──────────────────────────────────────────
+# Template tests
+# ──────────────────────────────────────────
+
+class TestTemplates:
+
+    def test_templates_exist(self):
+        from app.api.routes.templates import TEMPLATES
+        assert len(TEMPLATES) >= 6
+
+    def test_template_has_assumptions(self):
+        from app.api.routes.templates import TEMPLATES
+        for t in TEMPLATES:
+            assert t.assumptions, f"Template {t.id} has no assumptions"
+            assert t.industry, f"Template {t.id} has no industry"
+
+    def test_template_ids_unique(self):
+        from app.api.routes.templates import TEMPLATES
+        ids = [t.id for t in TEMPLATES]
+        assert len(ids) == len(set(ids)), "Duplicate template IDs found"

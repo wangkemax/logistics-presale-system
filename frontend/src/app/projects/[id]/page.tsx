@@ -120,6 +120,23 @@ export default function ProjectDetailPage() {
     finally { setRunning(false); }
   }
 
+  async function handleResumePipeline() {
+    setRunning(true);
+    try {
+      const res = await api.resumePipeline(id);
+      showToast(res.message || "从断点恢复中...");
+      setProject(prev => prev ? { ...prev, status: "in_progress" } : prev);
+    } catch (err: any) { showToast("恢复失败: " + err.message); }
+    finally { setRunning(false); }
+  }
+
+  // Auto-poll when pipeline is running (fallback for WebSocket)
+  useEffect(() => {
+    if (project?.status !== "in_progress") return;
+    const timer = setInterval(() => { loadProject(); }, 5000);
+    return () => clearInterval(timer);
+  }, [project?.status]);
+
   async function handleGenerateQuotation() {
     setGeneratingQuote(true);
     try {
@@ -198,6 +215,10 @@ export default function ProjectDetailPage() {
                 className="px-4 py-2 text-sm text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition">
                 📊 方案对比
               </Link>
+              <Link href={`/projects/${id}/solution`}
+                className="px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition">
+                🏗️ 方案详情
+              </Link>
               <Link href={`/projects/${id}/quotation`}
                 className="px-4 py-2 text-sm text-green-600 border border-green-300 rounded-lg hover:bg-green-50 transition">
                 💰 报价计算
@@ -215,6 +236,12 @@ export default function ProjectDetailPage() {
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
                 {uploading ? "上传中..." : "上传招标文件"}
               </button>
+              {stages.some(s => s.status === "failed") && project.status !== "in_progress" && (
+                <button onClick={handleResumePipeline} disabled={running}
+                  className="px-4 py-2 text-sm bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition disabled:opacity-50">
+                  从断点恢复
+                </button>
+              )}
               <button onClick={handleRunPipeline} disabled={running || project.status === "in_progress"}
                 className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50">
                 {project.status === "in_progress" ? "运行中..." : "启动 AI 分析"}
@@ -407,6 +434,7 @@ export default function ProjectDetailPage() {
             {[
               { type: "tender", icon: "📄", title: "投标文档 (Word)", desc: "10 章节专业标书，含公司介绍、方案设计、成本报价等", ext: ".docx" },
               { type: "ppt", icon: "📊", title: "方案汇报 (PPT)", desc: "12 页方案演示，含项目概览、方案设计、财务分析、实施计划等", ext: ".pptx" },
+              { type: "pdf", icon: "📑", title: "项目报告 (PDF)", desc: "需求、方案、财务指标、风险分析的综合 PDF 报告", ext: ".pdf" },
             ].map(doc => (
               <div key={doc.type} className="bg-white rounded-xl border border-gray-200 p-6">
                 <div className="text-3xl mb-3">{doc.icon}</div>
