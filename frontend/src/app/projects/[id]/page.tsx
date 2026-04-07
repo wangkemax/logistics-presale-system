@@ -197,6 +197,10 @@ export default function ProjectDetailPage() {
                 className="px-4 py-2 text-sm text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 transition">
                 ✅ QA 审核
               </Link>
+              <Link href={`/projects/${id}/editor`}
+                className="px-4 py-2 text-sm text-purple-600 border border-purple-300 rounded-lg hover:bg-purple-50 transition">
+                ✏️ 标书编辑
+              </Link>
               <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden" onChange={handleUpload} />
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">

@@ -52,3 +52,11 @@ reset-db:
 	docker compose exec db psql -U postgres -c "DROP DATABASE IF EXISTS logistics_presale;"
 	docker compose exec db psql -U postgres -c "CREATE DATABASE logistics_presale;"
 	docker compose restart backend
+
+# E2E tests
+test-e2e:
+	cd backend && python tests/test_e2e.py
+
+# Seed knowledge base
+seed:
+	cd backend && python -m app.scripts.seed_knowledge
