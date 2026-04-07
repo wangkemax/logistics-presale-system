@@ -138,8 +138,34 @@ export default function DashboardPage() {
       {/* Create Project Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">新建售前项目</h3>
+
+            {/* Template quick-pick */}
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-2">快速选择行业模板</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "ecommerce_warehouse", icon: "📦", label: "电商仓储", industry: "电商" },
+                  { id: "cold_chain", icon: "❄️", label: "冷链仓储", industry: "冷链" },
+                  { id: "auto_parts", icon: "🚗", label: "汽车备件", industry: "汽车" },
+                  { id: "pharma", icon: "💊", label: "医药物流", industry: "医药" },
+                  { id: "fmcg", icon: "🏪", label: "快消分拨", industry: "快消" },
+                  { id: "manufacturing", icon: "🏭", label: "制造业", industry: "制造" },
+                ].map(t => (
+                  <button key={t.id} type="button"
+                    onClick={() => setForm({ ...form, industry: t.industry })}
+                    className={`p-2 rounded-lg border text-sm text-left transition ${
+                      form.industry === t.industry
+                        ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-600"
+                    }`}>
+                    <span className="text-base mr-1">{t.icon}</span> {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div>
                 <label className="block text-sm text-gray-600 mb-1">项目名称 *</label>

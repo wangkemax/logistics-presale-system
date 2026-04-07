@@ -206,6 +206,65 @@ async def run_single_stage(
     return result.model_dump()
 
 
+@router.post("/{project_id}/resume-pipeline")
+async def resume_pipeline(
+    project_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Resume pipeline from the last failed or pending stage.
+    
+    Reuses completed stage outputs instead of re-running everything.
+    """
+    project = await _get_project(project_id, db)
+
+    # Get all stages
+    result = await db.execute(
+        select(ProjectStage)
+        .where(ProjectStage.project_id == project_id)
+        .order_by(ProjectStage.stage_number)
+    )
+    stages = result.scalars().all()
+
+    # Find first non-completed stage
+    resume_from = 0
+    for stage in stages:
+        if stage.status in ("completed",):
+            continue
+        resume_from = stage.stage_number
+        break
+    else:
+        return {"message": "All stages already completed", "resume_from": None}
+
+    # Get document text
+    stage1 = next((s for s in stages if s.stage_number == 1), None)
+    doc_text = ""
+    if stage1 and stage1.output_data:
+        doc_text = stage1.output_data.get("_uploaded_text", "")
+
+    if not doc_text and resume_from <= 1:
+        raise HTTPException(status_code=400, detail="No tender document uploaded.")
+
+    project.status = "in_progress"
+    # Reset failed stages to pending
+    for stage in stages:
+        if stage.status == "failed":
+            stage.status = "pending"
+            stage.output_data = None
+            stage.error_message = None
+    await db.flush()
+
+    background_tasks.add_task(
+        _execute_pipeline_bg, project_id, doc_text, resume_from
+    )
+
+    return {
+        "message": f"Pipeline resuming from Stage {resume_from}",
+        "resume_from": resume_from,
+    }
+
+
 # ── Stages ──
 
 @router.get("/{project_id}/stages", response_model=list[StageResponse])

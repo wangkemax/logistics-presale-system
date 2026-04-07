@@ -78,6 +78,15 @@ export default function ProjectDetailPage() {
 
   useEffect(() => { loadProject(); }, [id]);
 
+  // Auto-poll when pipeline is running (recovers state after navigation)
+  useEffect(() => {
+    if (!project) return;
+    const isRunning = project.status === "in_progress" || stages.some(s => s.status === "running");
+    if (!isRunning) return;
+    const timer = setInterval(loadProject, 5000);
+    return () => clearInterval(timer);
+  }, [project?.status, stages]);
+
   async function loadProject() {
     try {
       const [p, s, q] = await Promise.all([

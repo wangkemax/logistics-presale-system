@@ -10,6 +10,7 @@ from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.rate_limiter import RateLimitMiddleware
 from app.core.middleware import SecurityHeadersMiddleware, RequestLoggingMiddleware, InputSanitizationMiddleware
 from app.core.logging import setup_logging
+from app.core.metrics import MetricsMiddleware, register_metrics_endpoint
 from app.api.routes import auth, projects
 from app.api.routes import quotations as quotations_routes
 from app.api.routes import knowledge as knowledge_routes
@@ -17,6 +18,7 @@ from app.api.routes import documents as documents_routes
 from app.api.routes import editor as editor_routes
 from app.api.routes import prompts as prompts_routes
 from app.api.routes import export as export_routes
+from app.api.routes import templates as templates_routes
 from app.services.websocket_service import router as ws_router, manager as ws_manager
 
 settings = get_settings()
@@ -52,6 +54,7 @@ app = FastAPI(
 )
 
 # Middleware (order matters: last added = first executed)
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -73,7 +76,11 @@ app.include_router(documents_routes.router, prefix="/api/v1")
 app.include_router(editor_routes.router, prefix="/api/v1")
 app.include_router(prompts_routes.router, prefix="/api/v1")
 app.include_router(export_routes.router, prefix="/api/v1")
+app.include_router(templates_routes.router, prefix="/api/v1")
 app.include_router(ws_router)
+
+# Prometheus metrics
+register_metrics_endpoint(app)
 
 
 @app.get("/")

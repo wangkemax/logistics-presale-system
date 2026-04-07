@@ -104,6 +104,13 @@ class BaseAgent(ABC):
                 except Exception:
                     pass
 
+            # ── Record metrics ──
+            try:
+                from app.core.metrics import record_agent_execution
+                record_agent_execution(self.name, "success", output.execution_time_seconds)
+            except Exception:
+                pass
+
             logger.info(
                 "agent_completed",
                 agent=self.name,
@@ -116,6 +123,11 @@ class BaseAgent(ABC):
         except asyncio.TimeoutError:
             elapsed = time.time() - start
             logger.error("agent_timeout", agent=self.name, timeout=self.timeout_minutes)
+            try:
+                from app.core.metrics import record_agent_execution
+                record_agent_execution(self.name, "timeout", round(elapsed, 2))
+            except Exception:
+                pass
             return AgentOutput(
                 stage_number=self.stage_number,
                 agent_name=self.name,
@@ -128,6 +140,11 @@ class BaseAgent(ABC):
         except Exception as e:
             elapsed = time.time() - start
             logger.error("agent_failed", agent=self.name, error=str(e))
+            try:
+                from app.core.metrics import record_agent_execution
+                record_agent_execution(self.name, "error", round(elapsed, 2))
+            except Exception:
+                pass
             return AgentOutput(
                 stage_number=self.stage_number,
                 agent_name=self.name,
