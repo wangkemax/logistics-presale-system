@@ -4,6 +4,7 @@ Manages the 12-stage pipeline, coordinates agent execution,
 handles state management, and enforces QA gates.
 """
 
+import asyncio
 import structlog
 from datetime import datetime, timezone
 
@@ -91,32 +92,32 @@ class PipelineOrchestrator:
         if notify_callback:
             await notify_callback("stage_completed", 0)
 
-        # Stage 1: Requirement Extraction
+        # Stage 1: Requirement Extraction (must be first)
         s1_input = {"document_text": document_text, "file_name": "tender.pdf"}
         s1_result = await self._run_stage(1, s1_input, project_context, project_id=project.id)
         stage_outputs[1] = s1_result.data
         if s1_result.status != "success":
             return {"status": "failed", "failed_at": 1, "error": s1_result.data}
 
-        # Stage 2: Requirement Clarification
+        # ── Parallel batch 1: Stages 2, 3, 4 (all depend only on Stage 1) ──
+        logger.info("parallel_batch_start", batch=1, stages=[2, 3, 4])
         s2_input = {
             "requirements": s1_result.data.get("requirements", []),
             "missing_critical_info": s1_result.data.get("missing_critical_info", []),
         }
-        s2_result = await self._run_stage(2, s2_input, project_context, project_id=project.id)
-        stage_outputs[2] = s2_result.data
-
-        # Stage 3: Data Analysis
         s3_input = {"requirements": s1_result.data}
-        s3_result = await self._run_stage(3, s3_input, project_context, project_id=project.id)
-        stage_outputs[3] = s3_result.data
-
-        # Stage 4: Knowledge Base
         s4_input = {"requirements": s1_result.data}
-        s4_result = await self._run_stage(4, s4_input, project_context, project_id=project.id)
+
+        s2_result, s3_result, s4_result = await asyncio.gather(
+            self._run_stage(2, s2_input, project_context, project_id=project.id),
+            self._run_stage(3, s3_input, project_context, project_id=project.id),
+            self._run_stage(4, s4_input, project_context, project_id=project.id),
+        )
+        stage_outputs[2] = s2_result.data
+        stage_outputs[3] = s3_result.data
         stage_outputs[4] = s4_result.data
 
-        # Stage 5: Logistics Architecture
+        # Stage 5: Logistics Architecture (depends on 1, 3, 4)
         s5_input = {
             "requirements": s1_result.data,
             "knowledge_context": s4_result.data.get("synthesized_context", ""),
@@ -125,21 +126,23 @@ class PipelineOrchestrator:
         s5_result = await self._run_stage(5, s5_input, project_context, project_id=project.id)
         stage_outputs[5] = s5_result.data
 
-        # Stage 6: Automation Solution
+        # ── Parallel batch 2: Stages 6, 7 (both depend on 5 + earlier) ──
+        logger.info("parallel_batch_start", batch=2, stages=[6, 7])
         s6_input = {
             "requirements": s1_result.data,
             "solution_design": s5_result.data,
             "automation_knowledge": s4_result.data.get("retrieved_knowledge", {}).get("automation_cases", ""),
         }
-        s6_result = await self._run_stage(6, s6_input, project_context, project_id=project.id)
-        stage_outputs[6] = s6_result.data
-
-        # Stage 7: Benchmark
         s7_input = {
             "requirements": s1_result.data,
             "knowledge_cases": s4_result.data.get("retrieved_knowledge", {}).get("logistics_cases", ""),
         }
-        s7_result = await self._run_stage(7, s7_input, project_context, project_id=project.id)
+
+        s6_result, s7_result = await asyncio.gather(
+            self._run_stage(6, s6_input, project_context, project_id=project.id),
+            self._run_stage(7, s7_input, project_context, project_id=project.id),
+        )
+        stage_outputs[6] = s6_result.data
         stage_outputs[7] = s7_result.data
 
         # Stage 8: Cost Model

@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import structlog
 
 from app.core.config import get_settings
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.rate_limiter import RateLimitMiddleware
+from app.core.middleware import SecurityHeadersMiddleware, RequestLoggingMiddleware, InputSanitizationMiddleware
+from app.core.logging import setup_logging
 from app.api.routes import auth, projects
 from app.api.routes import quotations as quotations_routes
 from app.api.routes import knowledge as knowledge_routes
@@ -20,12 +21,8 @@ from app.services.websocket_service import router as ws_router, manager as ws_ma
 
 settings = get_settings()
 
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.dev.ConsoleRenderer(),
-    ],
-)
+# Initialize structured logging
+setup_logging()
 
 
 @asynccontextmanager
@@ -54,7 +51,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# Middleware (order matters: last added = first executed)
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(InputSanitizationMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -62,9 +63,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Rate limiting
-app.add_middleware(RateLimitMiddleware)
 
 # Routes
 app.include_router(auth.router, prefix="/api/v1")

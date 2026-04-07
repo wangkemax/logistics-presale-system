@@ -54,6 +54,9 @@ reset-db:
 	docker compose restart backend
 
 # E2E tests
+test:
+	cd backend && python -m pytest tests/test_unit.py -v
+
 test-e2e:
 	cd backend && python tests/test_e2e.py
 

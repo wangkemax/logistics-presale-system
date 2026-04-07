@@ -82,13 +82,13 @@
 |------|------|------|------|
 | **运维** | CI/CD Pipeline | 🔲 待做 | GitHub Actions → Docker → K8s |
 | | 监控告警 | 🔲 待做 | Prometheus + Grafana |
-| | 日志聚合 | 🔲 待做 | ELK / Loki |
-| **安全** | 安全审计 | 🔲 待做 | SQL 注入 / XSS / 权限校验 |
+| | 日志聚合 | ✅ 完成 | structlog JSON lines + request logging |
+| **安全** | 安全审计 | ✅ 完成 | Security headers + input sanitization + HSTS |
 | | API 限流 | ✅ 完成 | Redis 滑动窗口 + 分组限速 |
 | | 数据加密 | 🔲 待做 | AES 加密敏感字段 |
 | **性能** | 数据库索引优化 | 🔲 待做 | 慢查询分析 |
-| | LLM 调用优化 | 🔲 待做 | 并行调用 + 流式输出 |
-| **测试** | 单元测试 | 🔲 待做 | pytest + 80% 覆盖率目标 |
+| | LLM 调用优化 | ✅ 完成 | Stage 2/3/4 并行 + Stage 6/7 并行 |
+| **测试** | 单元测试 | ✅ 完成 | 20+ test cases (agents/services/security) |
 | | E2E 测试 | 🔲 待做 | Playwright |
 | | UAT | 🔲 待做 | 真实招标文件验证 |
 
