@@ -9,23 +9,30 @@ against Milvus vector database for the three knowledge bases:
 
 import asyncio
 import hashlib
+import json
 import structlog
 from typing import Any
 
 from tenacity import retry, stop_after_attempt, wait_exponential
-from pymilvus import (
-    connections,
-    Collection,
-    CollectionSchema,
-    FieldSchema,
-    DataType,
-    utility,
-)
-import openai
+
+logger = structlog.get_logger()
+
+# Lazy import pymilvus — it may not be available or may have broken deps
+_pymilvus = None
+
+def _get_pymilvus():
+    global _pymilvus
+    if _pymilvus is None:
+        try:
+            import pymilvus
+            _pymilvus = pymilvus
+        except ImportError as e:
+            logger.warning("pymilvus_not_available", error=str(e))
+            _pymilvus = False
+    return _pymilvus if _pymilvus else None
 
 from app.core.config import get_settings
 
-logger = structlog.get_logger()
 settings = get_settings()
 
 # Embedding dimension for text-embedding-3-small
@@ -46,8 +53,14 @@ class KnowledgeService:
         self.embedding_model = embedding_model or settings.embedding_model
         self._connected = False
 
-        # OpenAI client for embeddings
-        self._openai = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        # Lazy OpenAI client
+        self._openai = None
+
+    def _get_openai(self):
+        if self._openai is None:
+            import openai
+            self._openai = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        return self._openai
 
     # ──────────────────────────────────────────
     # Connection management
@@ -57,9 +70,13 @@ class KnowledgeService:
         """Establish connection to Milvus."""
         if self._connected:
             return
+        pymilvus = _get_pymilvus()
+        if not pymilvus:
+            logger.warning("milvus_skipped", reason="pymilvus not available")
+            return
         try:
             await asyncio.to_thread(
-                connections.connect,
+                pymilvus.connections.connect,
                 alias="default",
                 host=self.milvus_host,
                 port=self.milvus_port,
@@ -68,12 +85,14 @@ class KnowledgeService:
             logger.info("milvus_connected", host=self.milvus_host, port=self.milvus_port)
         except Exception as e:
             logger.error("milvus_connection_failed", error=str(e))
-            raise
 
     async def disconnect(self) -> None:
         """Close Milvus connection."""
+        pymilvus = _get_pymilvus()
+        if not pymilvus:
+            return
         try:
-            await asyncio.to_thread(connections.disconnect, alias="default")
+            await asyncio.to_thread(pymilvus.connections.disconnect, alias="default")
             self._connected = False
         except Exception:
             pass
@@ -85,37 +104,31 @@ class KnowledgeService:
     async def create_collection(
         self, collection_name: str, dimension: int = EMBEDDING_DIM
     ) -> None:
-        """Create a Milvus collection with standard schema.
-
-        Schema:
-            - id:        VARCHAR(128), primary key
-            - content:   VARCHAR(65535), document text
-            - category:  VARCHAR(64), e.g. automation_case / cost_model / logistics_case
-            - tags:      VARCHAR(512), comma-separated tags
-            - metadata:  VARCHAR(8192), JSON string for extra fields
-            - embedding: FLOAT_VECTOR(dimension)
-        """
+        """Create a Milvus collection with standard schema."""
+        pymilvus = _get_pymilvus()
+        if not pymilvus:
+            logger.warning("create_collection_skipped", reason="pymilvus not available")
+            return
         await self.connect()
 
-        exists = await asyncio.to_thread(utility.has_collection, collection_name)
+        exists = await asyncio.to_thread(pymilvus.utility.has_collection, collection_name)
         if exists:
             logger.info("collection_exists", name=collection_name)
             return
 
         fields = [
-            FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=128),
-            FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
-            FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=64),
-            FieldSchema(name="tags", dtype=DataType.VARCHAR, max_length=512),
-            FieldSchema(name="metadata", dtype=DataType.VARCHAR, max_length=8192),
-            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=dimension),
+            pymilvus.FieldSchema(name="id", dtype=pymilvus.DataType.VARCHAR, is_primary=True, max_length=128),
+            pymilvus.FieldSchema(name="content", dtype=pymilvus.DataType.VARCHAR, max_length=65535),
+            pymilvus.FieldSchema(name="category", dtype=pymilvus.DataType.VARCHAR, max_length=64),
+            pymilvus.FieldSchema(name="tags", dtype=pymilvus.DataType.VARCHAR, max_length=512),
+            pymilvus.FieldSchema(name="metadata", dtype=pymilvus.DataType.VARCHAR, max_length=8192),
+            pymilvus.FieldSchema(name="embedding", dtype=pymilvus.DataType.FLOAT_VECTOR, dim=dimension),
         ]
-        schema = CollectionSchema(fields=fields, description=f"Knowledge base: {collection_name}")
+        schema = pymilvus.CollectionSchema(fields=fields, description=f"Knowledge base: {collection_name}")
 
-        await asyncio.to_thread(Collection, name=collection_name, schema=schema)
+        await asyncio.to_thread(pymilvus.Collection, name=collection_name, schema=schema)
 
-        # Create IVF_FLAT index on embedding field
-        collection = Collection(collection_name)
+        collection = pymilvus.Collection(collection_name)
         index_params = {
             "index_type": "IVF_FLAT",
             "metric_type": "COSINE",
@@ -134,9 +147,9 @@ class KnowledgeService:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=15))
     async def _get_embedding(self, text: str) -> list[float]:
         """Generate embedding vector for a text string."""
-        # Truncate to ~8000 tokens worth of text
         truncated = text[:16000]
-        response = await self._openai.embeddings.create(
+        client = self._get_openai()
+        response = await client.embeddings.create(
             model=self.embedding_model,
             input=truncated,
         )
@@ -144,10 +157,11 @@ class KnowledgeService:
 
     async def _get_embeddings_batch(self, texts: list[str], batch_size: int = 64) -> list[list[float]]:
         """Generate embeddings for multiple texts in batches."""
+        client = self._get_openai()
         all_embeddings: list[list[float]] = []
         for i in range(0, len(texts), batch_size):
             batch = [t[:16000] for t in texts[i : i + batch_size]]
-            response = await self._openai.embeddings.create(
+            response = await client.embeddings.create(
                 model=self.embedding_model,
                 input=batch,
             )
@@ -197,7 +211,6 @@ class KnowledgeService:
             categories.append(doc.get("category", ""))
             tags_list.append(",".join(doc.get("tags", [])))
 
-            import json
             meta = doc.get("metadata", {})
             metadata_list.append(json.dumps(meta, ensure_ascii=False, default=str)[:8000])
 
@@ -206,7 +219,7 @@ class KnowledgeService:
         embeddings = await self._get_embeddings_batch(contents)
 
         # Insert into Milvus
-        collection = Collection(collection_name)
+        collection = _get_pymilvus().Collection(collection_name)
         data = [ids, contents, categories, tags_list, metadata_list, embeddings]
         await asyncio.to_thread(collection.insert, data)
         await asyncio.to_thread(collection.flush)
@@ -240,7 +253,7 @@ class KnowledgeService:
 
         query_embedding = await self._get_embedding(query)
 
-        collection = Collection(collection_name)
+        collection = _get_pymilvus().Collection(collection_name)
         await asyncio.to_thread(collection.load)
 
         # Build filter expression
@@ -329,7 +342,7 @@ class KnowledgeService:
         """
         await self.connect()
 
-        collection = Collection(collection_name)
+        collection = _get_pymilvus().Collection(collection_name)
         id_list = ", ".join(f'"{i}"' for i in ids)
         expr = f"id in [{id_list}]"
 
@@ -364,7 +377,6 @@ class KnowledgeService:
     @staticmethod
     def _format_results(raw_results) -> list[dict[str, Any]]:
         """Format Milvus search results into clean dicts."""
-        import json
 
         output: list[dict[str, Any]] = []
         if not raw_results or len(raw_results) == 0:
