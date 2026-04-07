@@ -87,26 +87,44 @@ async def get_project(
 # ── File Upload ──
 
 @router.post("/{project_id}/upload-tender")
-async def upload_tender_file(
+async def upload_tender_files(
     project_id: UUID,
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """Upload a tender document (PDF/Word) to a project."""
+    """Upload one or more tender documents (PDF/Word/TXT) to a project."""
     project = await _get_project(project_id, db)
 
-    file_bytes = await file.read()
-    if len(file_bytes) > 50 * 1024 * 1024:  # 50MB limit
-        raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+    all_texts: list[str] = []
+    uploaded_files: list[dict] = []
 
-    # Extract text
-    document_text = await extract_text_from_file(file_bytes, file.filename)
+    for file in files:
+        file_bytes = await file.read()
+        if len(file_bytes) > 50 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{file.filename}' too large (max 50MB per file)",
+            )
 
-    # Store reference (TODO: upload to S3)
-    project.tender_file_url = f"/uploads/{file.filename}"
+        # Extract text
+        document_text = await extract_text_from_file(file_bytes, file.filename)
+        all_texts.append(f"=== FILE: {file.filename} ===\n{document_text}")
 
-    # Store extracted text in stage 1 for later use
+        uploaded_files.append({
+            "file_name": file.filename,
+            "text_length": len(document_text),
+            "pages_estimated": document_text.count("--- Page"),
+        })
+
+    # Merge all file texts
+    merged_text = "\n\n".join(all_texts)
+
+    # Store reference
+    file_names = [f["file_name"] for f in uploaded_files]
+    project.tender_file_url = ", ".join(file_names)
+
+    # Store merged text in stage 1 for pipeline use
     result = await db.execute(
         select(ProjectStage).where(
             ProjectStage.project_id == project_id,
@@ -115,15 +133,18 @@ async def upload_tender_file(
     )
     stage = result.scalar_one_or_none()
     if stage:
-        stage.output_data = {"_uploaded_text": document_text[:50000], "file_name": file.filename}
+        stage.output_data = {
+            "_uploaded_text": merged_text[:100000],
+            "file_name": ", ".join(file_names),
+            "file_count": len(files),
+        }
 
     await db.flush()
 
     return {
-        "message": "Tender file uploaded successfully",
-        "file_name": file.filename,
-        "text_length": len(document_text),
-        "pages_estimated": document_text.count("--- Page"),
+        "message": f"{len(files)} file(s) uploaded successfully",
+        "files": uploaded_files,
+        "total_text_length": len(merged_text),
     }
 
 

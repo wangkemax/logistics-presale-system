@@ -90,15 +90,15 @@ export default function ProjectDetailPage() {
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
     setUploading(true);
     try {
-      await api.uploadTender(id, file);
-      showToast(`${file.name} 上传成功`);
+      await api.uploadTender(id, Array.from(fileList));
+      showToast(`${fileList.length} 个文件上传成功`);
       await loadProject();
     } catch (err: any) { showToast("上传失败: " + err.message); }
-    finally { setUploading(false); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   }
 
   async function handleRunPipeline() {
@@ -201,7 +201,7 @@ export default function ProjectDetailPage() {
                 className="px-4 py-2 text-sm text-purple-600 border border-purple-300 rounded-lg hover:bg-purple-50 transition">
                 ✏️ 标书编辑
               </Link>
-              <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden" onChange={handleUpload} />
+              <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv" multiple className="hidden" onChange={handleUpload} />
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
                 {uploading ? "上传中..." : "上传招标文件"}

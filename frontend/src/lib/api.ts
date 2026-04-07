@@ -120,10 +120,13 @@ export const projects = {
       body: JSON.stringify(data),
     }),
 
-  uploadTender: async (projectId: string, file: File) => {
+  uploadTender: async (projectId: string, files: File | File[]) => {
     const token = localStorage.getItem("token");
     const formData = new FormData();
-    formData.append("file", file);
+    const fileArray = Array.isArray(files) ? files : [files];
+    for (const file of fileArray) {
+      formData.append("files", file);
+    }
 
     const res = await fetch(`${API_BASE}/api/v1/projects/${projectId}/upload-tender`, {
       method: "POST",
