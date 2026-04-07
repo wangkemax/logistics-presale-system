@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from app.core.config import get_settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
+from app.core.rate_limiter import RateLimitMiddleware
 from app.api.routes import auth, projects
 from app.api.routes import quotations as quotations_routes
 from app.api.routes import knowledge as knowledge_routes
@@ -27,10 +28,8 @@ structlog.configure(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Create tables on startup (dev only; use Alembic in production)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    # Initialize WebSocket Redis pub/sub
     await ws_manager.init_redis()
     yield
     await ws_manager.shutdown_redis()
@@ -48,7 +47,7 @@ app = FastAPI(
         "- 标书/PPT/报价单一键生成\n"
         "- QA 质量门禁\n"
     ),
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -60,6 +59,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting
+app.add_middleware(RateLimitMiddleware)
 
 # Routes
 app.include_router(auth.router, prefix="/api/v1")
@@ -74,11 +76,50 @@ app.include_router(ws_router)
 async def root():
     return {
         "name": "Logistics Presale AI System",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "status": "running",
+        "docs": "/docs",
     }
 
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    """Enhanced health check — verifies DB, Redis, and core services."""
+    import redis.asyncio as aioredis
+
+    checks = {"api": "ok"}
+
+    # Database
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(__import__("sqlalchemy").text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {str(e)[:50]}"
+
+    # Redis
+    try:
+        r = aioredis.from_url(settings.redis_url, decode_responses=True)
+        await r.ping()
+        await r.aclose()
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = f"error: {str(e)[:50]}"
+
+    # WebSocket manager
+    checks["websocket_connections"] = ws_manager.active_connections
+
+    # Cache stats
+    try:
+        from app.services.agent_cache import get_agent_cache
+        cache = get_agent_cache()
+        cache_stats = await cache.stats()
+        checks["agent_cache_entries"] = cache_stats["total_entries"]
+    except Exception:
+        checks["agent_cache_entries"] = "unavailable"
+
+    all_ok = all(v == "ok" for k, v in checks.items() if k in ("api", "database", "redis"))
+    return {
+        "status": "healthy" if all_ok else "degraded",
+        "checks": checks,
+    }
