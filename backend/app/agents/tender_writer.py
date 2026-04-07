@@ -49,12 +49,23 @@ Standard chapter structure:
         import json
         all_outputs = input_data.get("all_stage_outputs", {})
 
+        # Build a condensed summary instead of dumping all outputs
+        summary_parts = []
+        for stage_num in sorted(all_outputs.keys(), key=lambda x: int(x)):
+            data = all_outputs[stage_num]
+            # Skip internal fields and limit each stage
+            condensed = json.dumps(data, ensure_ascii=False, default=str)[:3000]
+            summary_parts.append(f"### Stage {stage_num} Output (condensed)\n{condensed}")
+
+        combined = "\n\n".join(summary_parts)[:15000]
+
         prompt = f"""Generate a complete tender proposal based on all analysis results.
 
-## All Stage Outputs
-{json.dumps(all_outputs, ensure_ascii=False, indent=2, default=str)[:20000]}
+## Project Analysis Summary
+{combined}
 
-Write each chapter in professional Chinese. Be specific and persuasive.
-Include numbers, metrics, and concrete commitments throughout."""
+Write each chapter in professional Chinese (简体中文).
+Be specific and persuasive. Include numbers, metrics, and concrete commitments.
+Each chapter should be 200-400 words. Focus on quality over quantity."""
 
-        return await self.call_llm_json(prompt, max_tokens=12000)
+        return await self.call_llm_json(prompt, max_tokens=8000)

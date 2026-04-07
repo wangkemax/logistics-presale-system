@@ -1,8 +1,8 @@
 """Unified LLM client with primary/fallback model support."""
 
 import structlog
-from anthropic import AsyncAnthropic
-from tenacity import retry, stop_after_attempt, wait_exponential
+from anthropic import AsyncAnthropic, APIConnectionError, APITimeoutError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.core.config import get_settings
 
@@ -14,13 +14,18 @@ class LLMClient:
     """Multi-provider LLM client with automatic fallback."""
 
     def __init__(self):
-        self.anthropic = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self.anthropic = AsyncAnthropic(
+            api_key=settings.anthropic_api_key,
+            timeout=300.0,  # 5 minutes for long generations
+            max_retries=0,  # We handle retries ourselves
+        )
         self.primary_model = settings.llm_primary_model
         self.fallback_model = settings.llm_fallback_model
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=30),
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=2, min=3, max=30),
+        retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),
     )
     async def generate(
         self,
@@ -40,6 +45,9 @@ class LLMClient:
             )
             return response.content[0].text
 
+        except (APIConnectionError, APITimeoutError) as e:
+            logger.error("llm_connection_error", error=str(e), model=self.primary_model)
+            raise
         except Exception as e:
             logger.error("llm_primary_failed", error=str(e), model=self.primary_model)
             raise
