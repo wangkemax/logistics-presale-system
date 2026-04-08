@@ -176,10 +176,16 @@ export const quotations = {
     const token = localStorage.getItem("token");
     if (!token) throw new ApiError("请先登录", 401);
     const res = await fetch(
-      `/api/v1/projects/${projectId}/quotations/${quotationId}/export-excel`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      `${API_BASE}/api/v1/projects/${projectId}/quotations/${quotationId}/export-excel`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      }
     );
-    if (!res.ok) throw new ApiError("Export failed", res.status);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new ApiError(`Export failed: ${res.status} ${errText}`, res.status);
+    }
     const blob = await res.blob();
     const correctBlob = new Blob([blob], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

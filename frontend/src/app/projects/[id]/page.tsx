@@ -424,8 +424,9 @@ export default function ProjectDetailPage() {
     setGeneratingDoc(docType);
     try {
       const token = localStorage.getItem("token");
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(
-        `/api/v1/projects/${id}/documents/generate`,
+        `${apiBase}/api/v1/projects/${id}/documents/generate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
