@@ -74,19 +74,34 @@ async def generate_quotation_from_pipeline(
         )
 
     cost_data = cost_stage.output_data
+
+    # Universal multi-key getter
+    def _get(d: dict, *keys):
+        for k in keys:
+            v = d.get(k)
+            if v is not None:
+                return v
+        return None
+
     # Handle both English and Chinese field names from LLM
-    indicators = cost_data.get("financial_indicators") or cost_data.get("财务指标") or cost_data.get("投资回报") or {}
-    pricing = cost_data.get("pricing") or cost_data.get("报价") or cost_data.get("定价") or {}
+    indicators = _get(cost_data, "financial_indicators", "财务指标", "投资回报") or {}
+    pricing = _get(cost_data, "pricing", "报价", "定价", "定价模型") or {}
 
     import structlog
     logger = structlog.get_logger()
-    logger.info("quotation_extract", 
+    logger.info("quotation_extract",
         indicators_keys=list(indicators.keys()) if indicators else "EMPTY",
-        roi=indicators.get("roi_percent"),
-        irr=indicators.get("irr_percent"),
-        npv=indicators.get("npv_at_8pct"),
         pricing_keys=list(pricing.keys()) if pricing else "EMPTY",
     )
+
+    # Extract values with Chinese+English fallbacks
+    roi_val = _get(indicators, "roi_percent", "投资回报率", "ROI", "roi")
+    irr_val = _get(indicators, "irr_percent", "内部收益率", "IRR", "irr")
+    npv_val = _get(indicators, "npv_at_8pct", "净现值8折现", "净现值", "NPV", "npv")
+    payback_val = _get(indicators, "payback_months", "回本周期月数", "回本周期", "payback")
+    margin_val = _get(pricing, "target_margin_pct", "目标利润率", "利润率", "margin")
+    price_val = _get(pricing, "recommended_price", "建议报价", "推荐报价")
+    annual_val = _get(pricing, "total_annual", "总年度成本", "年度总成本", "annual_total")
 
     # Get next version
     result = await db.execute(
@@ -98,18 +113,23 @@ async def generate_quotation_from_pipeline(
     latest = result.scalar_one_or_none()
     next_version = (latest.version + 1) if latest else 1
 
+    # Calculate total_price from pricing data
+    total_price = _extract_total_price(cost_data)
+    if not total_price and annual_val:
+        total_price = float(annual_val)
+
     quotation = Quotation(
         project_id=project_id,
         version=next_version,
         scheme_name="方案A (AI 生成)",
-        cost_breakdown=cost_data.get("cost_breakdown"),
+        cost_breakdown=_get(cost_data, "cost_breakdown", "成本分解", "费用明细"),
         total_cost=_extract_total_cost(cost_data),
-        total_price=_extract_total_price(cost_data),
-        margin_rate=pricing.get("target_margin_pct", 15) / 100 if pricing.get("target_margin_pct") else None,
-        roi=indicators.get("roi_percent"),
-        irr=indicators.get("irr_percent"),
-        npv=indicators.get("npv_at_8pct") or indicators.get("npv"),
-        payback_months=indicators.get("payback_months"),
+        total_price=total_price,
+        margin_rate=float(margin_val) / 100 if margin_val and float(margin_val) > 1 else float(margin_val) if margin_val else None,
+        roi=float(roi_val) if roi_val is not None else None,
+        irr=float(irr_val) if irr_val is not None else None,
+        npv=float(npv_val) if npv_val is not None else None,
+        payback_months=int(payback_val) if payback_val is not None else None,
         status="draft",
     )
     db.add(quotation)

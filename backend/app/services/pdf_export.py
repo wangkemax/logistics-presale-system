@@ -37,19 +37,39 @@ async def generate_pdf_from_html(html_content: str, title: str = "Document") -> 
 
         styles = getSampleStyleSheet()
 
+        # Try to register a Chinese-capable font
+        chinese_font = "Helvetica"
+        chinese_font_bold = "Helvetica-Bold"
+        try:
+            import os
+            # Try common Chinese font paths
+            for font_path in [
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            ]:
+                if os.path.exists(font_path):
+                    pdfmetrics.registerFont(TTFont("ChineseFont", font_path))
+                    chinese_font = "ChineseFont"
+                    chinese_font_bold = "ChineseFont"
+                    break
+        except Exception:
+            pass  # Fall back to Helvetica
+
         # Custom styles
         styles.add(ParagraphStyle(
             name="ChTitle",
             fontSize=18, leading=24,
             spaceAfter=12, spaceBefore=24,
             textColor=colors.HexColor("#1F3864"),
-            fontName="Helvetica-Bold",
+            fontName=chinese_font_bold,
         ))
         styles.add(ParagraphStyle(
             name="ChBody",
             fontSize=11, leading=16,
             spaceAfter=8,
-            fontName="Helvetica",
+            fontName=chinese_font,
         ))
         styles.add(ParagraphStyle(
             name="CoverTitle",
@@ -118,33 +138,41 @@ async def generate_pdf_from_stages(stage_outputs: dict, project_info: dict) -> b
 
     # Stage 1: Requirements
     reqs = stage_outputs.get(1, {})
-    if reqs.get("requirements"):
-        sections.append("## Requirements Summary")
-        for r in reqs["requirements"][:15]:
-            sections.append(f"- [{r.get('priority', 'P1')}] {r.get('description', '')[:100]}")
+    req_list = reqs.get("requirements") or reqs.get("需求") or reqs.get("需求列表") or []
+    if req_list:
+        sections.append("## 需求概要 (Requirements Summary)")
+        for r in req_list[:15]:
+            desc = r.get('description', '') or r.get('描述', '') or str(r)
+            prio = r.get('priority', '') or r.get('优先级', 'P1')
+            sections.append(f"- [{prio}] {desc[:100]}")
         sections.append("")
 
     # Stage 5: Solution
     sol = stage_outputs.get(5, {})
-    if sol.get("executive_summary"):
-        sections.append("## Solution Design")
-        sections.append(sol["executive_summary"])
+    summary = sol.get("executive_summary") or sol.get("执行摘要") or sol.get("方案概要") or ""
+    if summary:
+        sections.append("## 方案设计 (Solution Design)")
+        sections.append(summary)
         sections.append("")
 
     # Stage 8: Cost
     cost = stage_outputs.get(8, {})
-    indicators = cost.get("financial_indicators", {})
+    indicators = cost.get("financial_indicators") or cost.get("财务指标") or {}
     if indicators:
-        sections.append("## Financial Indicators")
-        sections.append(f"- ROI: {indicators.get('roi_percent', 'N/A')}%")
-        sections.append(f"- IRR: {indicators.get('irr_percent', 'N/A')}%")
-        sections.append(f"- NPV: {indicators.get('npv_at_8pct', 'N/A')}")
-        sections.append(f"- Payback: {indicators.get('payback_months', 'N/A')} months")
+        sections.append("## 财务指标 (Financial Indicators)")
+        roi = indicators.get('roi_percent') or indicators.get('投资回报率') or 'N/A'
+        irr = indicators.get('irr_percent') or indicators.get('内部收益率') or 'N/A'
+        npv = indicators.get('npv_at_8pct') or indicators.get('净现值8折现') or 'N/A'
+        payback = indicators.get('payback_months') or indicators.get('回本周期月数') or 'N/A'
+        sections.append(f"- ROI: {roi}%")
+        sections.append(f"- IRR: {irr}%")
+        sections.append(f"- NPV: {npv}")
+        sections.append(f"- Payback: {payback} months")
         sections.append("")
 
     # Stage 9: Risks
     risks = stage_outputs.get(9, {})
-    risk_items = risks.get("risk_matrix", [])
+    risk_items = risks.get("risk_matrix") or risks.get("风险矩阵") or risks.get("风险") or []
     if risk_items:
         sections.append("## Key Risks")
         for r in risk_items[:5]:
