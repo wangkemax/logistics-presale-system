@@ -437,10 +437,10 @@ export default function ProjectDetailPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${project?.name || "document"}_${docType}.${docType === "ppt" ? "pptx" : "docx"}`;
+      a.download = `${project?.name || "document"}_${docType}.${docType === "ppt" ? "pptx" : docType === "pdf" ? "pdf" : "docx"}`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast(`${docType === "ppt" ? "PPT" : "标书"} 已下载`);
+      showToast(`${docType === "ppt" ? "PPT" : docType === "pdf" ? "PDF" : "标书"} 已下载`);
     } catch (err: any) { showToast("生成失败: " + err.message); }
     finally { setGeneratingDoc(null); }
   }

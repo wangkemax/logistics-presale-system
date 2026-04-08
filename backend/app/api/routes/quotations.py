@@ -74,8 +74,9 @@ async def generate_quotation_from_pipeline(
         )
 
     cost_data = cost_stage.output_data
-    indicators = cost_data.get("financial_indicators", {})
-    pricing = cost_data.get("pricing", {})
+    # Handle both English and Chinese field names from LLM
+    indicators = cost_data.get("financial_indicators") or cost_data.get("财务指标") or cost_data.get("投资回报") or {}
+    pricing = cost_data.get("pricing") or cost_data.get("报价") or cost_data.get("定价") or {}
 
     # Get next version
     result = await db.execute(
@@ -267,59 +268,102 @@ async def generate_scheme_comparison(
 
 def _extract_total_price(cost_data: dict) -> float | None:
     """Extract total price from cost model output, trying multiple field paths."""
-    pricing = cost_data.get("pricing", {})
+    import structlog
+    logger = structlog.get_logger()
 
-    # Try common field names the LLM might use
+    pricing = cost_data.get("pricing") or cost_data.get("报价") or cost_data.get("定价") or {}
+
+    # Try common field names the LLM might use (English + Chinese)
     for key in [
         "recommended_price", "total_annual", "total_price",
         "annual_price", "total_annual_price", "quoted_price",
-        "annual_revenue", "total_revenue",
+        "annual_revenue", "total_revenue", "annual_total_price",
+        "total", "total_cost", "annual_cost",
+        "推荐报价", "年度总价", "总报价", "年报价", "总价",
     ]:
         val = pricing.get(key)
         if val and isinstance(val, (int, float)) and val > 0:
+            logger.info("price_found", source="pricing", key=key, value=val)
             return float(val)
 
     # Try per_order * volume calculation
-    per_order = pricing.get("per_order") or pricing.get("per_order_price")
+    per_order = pricing.get("per_order") or pricing.get("per_order_price") or pricing.get("unit_price")
     if per_order and isinstance(per_order, (int, float)):
         daily_volume = pricing.get("daily_volume", 5000)
-        return float(per_order) * daily_volume * 260  # 260 work days
+        result = float(per_order) * daily_volume * 260
+        logger.info("price_calculated", source="per_order", per_order=per_order, daily_volume=daily_volume, result=result)
+        return result
 
     # Try cost_summary
-    cost_summary = cost_data.get("cost_summary", {})
-    for key in ["total_annual", "annual_total", "year1_total", "total_cost_year1"]:
+    cost_summary = cost_data.get("cost_summary") or cost_data.get("成本汇总") or cost_data.get("费用汇总") or {}
+    for key in ["total_annual", "annual_total", "year1_total", "total_cost_year1", "total", "annual_opex_year1",
+                "年度总成本", "第一年总成本", "年度运营成本", "总计"]:
         val = cost_summary.get(key)
         if val and isinstance(val, (int, float)) and val > 0:
+            logger.info("price_from_cost", source="cost_summary", key=key, value=val)
             return float(val) * 1.15  # Add 15% margin
 
     # Try summing cost_breakdown year1 values
-    breakdown = cost_data.get("cost_breakdown", {})
+    breakdown = cost_data.get("cost_breakdown") or cost_data.get("成本分解") or cost_data.get("费用明细") or {}
     year1_total = 0
-    for cat_data in breakdown.values():
+    for cat_name, cat_data in breakdown.items():
         if isinstance(cat_data, dict):
-            y1 = cat_data.get("year1", 0) or 0
-            if isinstance(y1, (int, float)):
-                year1_total += y1
+            for k in ["year1", "annual", "total", "amount"]:
+                y1 = cat_data.get(k, 0) or 0
+                if isinstance(y1, (int, float)) and y1 > 0:
+                    year1_total += y1
+                    break
+        elif isinstance(cat_data, (int, float)) and cat_data > 0:
+            year1_total += cat_data
     if year1_total > 0:
+        logger.info("price_from_breakdown", source="cost_breakdown_sum", value=year1_total)
         return float(year1_total) * 1.15
 
+    # Deep search: find ANY numeric value > 10000 in the entire cost_data
+    def _find_large_number(obj, path=""):
+        if isinstance(obj, (int, float)) and obj > 10000:
+            return obj, path
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                result = _find_large_number(v, f"{path}.{k}")
+                if result:
+                    return result
+        if isinstance(obj, list):
+            for i, v in enumerate(obj):
+                result = _find_large_number(v, f"{path}[{i}]")
+                if result:
+                    return result
+        return None
+
+    found = _find_large_number(cost_data)
+    if found:
+        val, path = found
+        logger.info("price_deep_search", source="deep_search", path=path, value=val)
+        return float(val)
+
+    logger.warning("price_not_found", cost_data_keys=list(cost_data.keys()))
     return None
 
 
 def _extract_total_cost(cost_data: dict) -> float | None:
     """Extract total cost from cost model output."""
-    cost_summary = cost_data.get("cost_summary", {})
-    for key in ["annual_opex_year1", "total_annual", "year1_total", "annual_opex"]:
+    cost_summary = cost_data.get("cost_summary") or cost_data.get("成本汇总") or cost_data.get("费用汇总") or {}
+    for key in ["annual_opex_year1", "total_annual", "year1_total", "annual_opex", "total", "annual_total",
+                "年度运营成本", "第一年总成本", "总成本", "年度总成本"]:
         val = cost_summary.get(key)
         if val and isinstance(val, (int, float)) and val > 0:
             return float(val)
 
     # Sum breakdown
-    breakdown = cost_data.get("cost_breakdown", {})
+    breakdown = cost_data.get("cost_breakdown") or cost_data.get("成本分解") or cost_data.get("费用明细") or {}
     total = 0
     for cat_data in breakdown.values():
         if isinstance(cat_data, dict):
-            y1 = cat_data.get("year1", 0) or 0
-            if isinstance(y1, (int, float)):
-                total += y1
+            for k in ["year1", "annual", "total", "amount"]:
+                y1 = cat_data.get(k, 0) or 0
+                if isinstance(y1, (int, float)) and y1 > 0:
+                    total += y1
+                    break
+        elif isinstance(cat_data, (int, float)) and cat_data > 0:
+            total += cat_data
     return float(total) if total > 0 else None

@@ -65,11 +65,26 @@ export default function SolutionWorkbenchPage() {
   const dataAnalysis = getStageData(3);
   const costModel = getStageData(8);
 
-  const warehouse = solution.warehouse_design || {};
-  const operations = solution.operations_design || {};
-  const technology = solution.technology || {};
-  const staffing = solution.staffing || {};
-  const performance = solution.performance || {};
+  // Try both English and Chinese field names since LLM output varies
+  const warehouse = solution.warehouse_design || solution.仓库设计 || solution.warehouse || solution.仓储设计 || {};
+  const operations = solution.operations_design || solution.运营设计 || solution.operations || solution.运营流程 || {};
+  const technology = solution.technology || solution.技术方案 || solution.it_system || solution.IT方案 || {};
+  const staffing = solution.staffing || solution.人员配置 || solution.team || solution.团队 || {};
+  const performance = solution.performance || solution.绩效指标 || solution.kpi || solution.KPI || {};
+
+  // Helper: get value trying multiple key names
+  const getField = (obj: any, ...keys: string[]) => {
+    if (!obj || typeof obj !== "object") return undefined;
+    for (const k of keys) {
+      if (obj[k] !== undefined) return obj[k];
+    }
+    return undefined;
+  };
+
+  const warehouseArea = getField(warehouse, "total_area_sqm", "总面积平米", "总面积", "面积", "area");
+  const totalHeadcount = getField(staffing, "total_headcount", "总人数", "人数", "headcount");
+  const dailyThroughput = getField(performance, "daily_throughput", "日吞吐量", "吞吐量", "throughput");
+  const accuracyTarget = getField(performance, "accuracy_target", "准确率目标", "准确率", "accuracy");
 
   const VIEWS = [
     { key: "overview", label: "方案总览", icon: "📋" },
@@ -105,19 +120,19 @@ export default function SolutionWorkbenchPage() {
         {/* Overview */}
         {activeView === "overview" && (
           <div className="space-y-6">
-            {solution.executive_summary && (
+            {(solution.executive_summary || solution.执行摘要) && (
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h2 className="text-base font-semibold text-gray-900 mb-3">执行摘要</h2>
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{solution.executive_summary}</p>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{solution.executive_summary || solution.执行摘要}</p>
               </div>
             )}
 
             <div className="grid grid-cols-4 gap-4">
               {[
-                { label: "仓库面积", value: warehouse.total_area_sqm ? `${warehouse.total_area_sqm.toLocaleString()} ㎡` : "—", icon: "📐" },
-                { label: "人员编制", value: staffing.total_headcount || "—", icon: "👥" },
-                { label: "日吞吐量", value: performance.daily_throughput ? `${performance.daily_throughput.toLocaleString()} 单` : "—", icon: "📦" },
-                { label: "准确率目标", value: performance.accuracy_target || "—", icon: "🎯" },
+                { label: "仓库面积", value: (warehouse.total_area_sqm || warehouse.总面积平米 || warehouse.面积) ? `${Number(warehouse.total_area_sqm || warehouse.总面积平米 || warehouse.面积).toLocaleString()} ㎡` : "—", icon: "📐" },
+                { label: "人员编制", value: staffing.total_headcount || staffing.总人数 || staffing.人数 || "—", icon: "👥" },
+                { label: "日吞吐量", value: (performance.daily_throughput || performance.日吞吐量) ? `${Number(performance.daily_throughput || performance.日吞吐量).toLocaleString()} 单` : "—", icon: "📦" },
+                { label: "准确率目标", value: performance.accuracy_target || performance.准确率目标 || performance.准确率 || "—", icon: "🎯" },
               ].map(kpi => (
                 <div key={kpi.label} className="bg-white rounded-xl border border-gray-200 p-5">
                   <div className="flex items-center gap-2 mb-2">
@@ -333,7 +348,7 @@ export default function SolutionWorkbenchPage() {
         )}
 
         {/* Empty state */}
-        {!solution.executive_summary && !warehouse.total_area_sqm && (
+        {!solution.executive_summary && !solution.执行摘要 && !warehouseArea && Object.keys(solution).filter(k => !k.startsWith("_")).length === 0 && (
           <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
             <p className="text-3xl mb-3">🏗️</p>
             <p className="text-gray-500 text-sm">运行 Pipeline 完成 Stage 5 (方案设计) 后可查看</p>
