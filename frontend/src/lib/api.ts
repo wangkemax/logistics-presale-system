@@ -174,17 +174,23 @@ export const quotations = {
 
   exportExcel: async (projectId: string, quotationId: string) => {
     const token = localStorage.getItem("token");
+    if (!token) throw new ApiError("请先登录", 401);
     const res = await fetch(
-      `${API_BASE}/api/v1/projects/${projectId}/quotations/${quotationId}/export-excel`,
+      `/api/v1/projects/${projectId}/quotations/${quotationId}/export-excel`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!res.ok) throw new ApiError("Export failed", res.status);
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    const correctBlob = new Blob([blob], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    const url = URL.createObjectURL(correctBlob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `quotation_${quotationId}.xlsx`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   },
 

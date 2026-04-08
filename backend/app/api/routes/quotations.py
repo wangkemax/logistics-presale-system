@@ -78,6 +78,16 @@ async def generate_quotation_from_pipeline(
     indicators = cost_data.get("financial_indicators") or cost_data.get("财务指标") or cost_data.get("投资回报") or {}
     pricing = cost_data.get("pricing") or cost_data.get("报价") or cost_data.get("定价") or {}
 
+    import structlog
+    logger = structlog.get_logger()
+    logger.info("quotation_extract", 
+        indicators_keys=list(indicators.keys()) if indicators else "EMPTY",
+        roi=indicators.get("roi_percent"),
+        irr=indicators.get("irr_percent"),
+        npv=indicators.get("npv_at_8pct"),
+        pricing_keys=list(pricing.keys()) if pricing else "EMPTY",
+    )
+
     # Get next version
     result = await db.execute(
         select(Quotation)

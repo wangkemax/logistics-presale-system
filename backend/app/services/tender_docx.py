@@ -52,17 +52,33 @@ async def generate_tender_docx(stage_outputs: dict, project_info: dict) -> bytes
     section.left_margin = Cm(2.5)
     section.right_margin = Cm(2.5)
 
-    # Default font
+    # Default font — must set East Asian font via XML for Chinese rendering
     style = doc.styles["Normal"]
     font = style.font
     font.name = "微软雅黑"
     font.size = Pt(10.5)
+    # Set East Asian font for Chinese characters
+    rPr = style.element.get_or_add_rPr()
+    rFonts = rPr.makeelement(qn("w:rFonts"), {
+        qn("w:eastAsia"): "微软雅黑",
+        qn("w:ascii"): "微软雅黑",
+        qn("w:hAnsi"): "微软雅黑",
+    })
+    rPr.append(rFonts)
 
     # Heading styles
     for level in range(1, 4):
         h_style = doc.styles[f"Heading {level}"]
         h_style.font.name = "微软雅黑"
         h_style.font.color.rgb = RGBColor(0x1F, 0x38, 0x64)
+        # Set East Asian font for headings too
+        h_rPr = h_style.element.get_or_add_rPr()
+        h_rFonts = h_rPr.makeelement(qn("w:rFonts"), {
+            qn("w:eastAsia"): "微软雅黑",
+            qn("w:ascii"): "微软雅黑",
+            qn("w:hAnsi"): "微软雅黑",
+        })
+        h_rPr.append(h_rFonts)
         if level == 1:
             h_style.font.size = Pt(18)
         elif level == 2:
