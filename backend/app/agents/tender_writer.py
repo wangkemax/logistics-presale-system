@@ -103,58 +103,66 @@ class TenderWriterAgent(BaseAgent):
         data_map = self._build_data_map(all_outputs)
         context_str = json.dumps(project_context, ensure_ascii=False, default=str)[:800]
 
-        # Generate chapters one by one
-        chapters = []
+        # Generate chapters — 2 at a time to speed up while avoiding rate limits
+        chapters = [None] * len(CHAPTERS)
         executive_summary_parts = []
 
-        for ch_def in CHAPTERS:
-            logger.info(
-                "tender_writing_chapter",
-                chapter=ch_def["number"],
-                title=ch_def["title"],
-            )
+        for batch_start in range(0, len(CHAPTERS), 2):
+            batch = CHAPTERS[batch_start : batch_start + 2]
+            tasks = [
+                self._write_chapter_safe(ch_def, data_map, context_str)
+                for ch_def in batch
+            ]
+            results = await asyncio.gather(*tasks)
 
-            try:
-                content = await self._write_chapter(ch_def, data_map, context_str)
-                chapters.append({
+            for ch_def, content in zip(batch, results):
+                idx = ch_def["number"] - 1
+                chapters[idx] = {
                     "chapter": ch_def["number"],
                     "title": ch_def["title"],
                     "content": content,
                     "word_count": len(content),
-                })
-                # Collect first sentence of each chapter for executive summary
+                }
                 first_line = content.split("\n")[0].strip()[:100]
                 executive_summary_parts.append(f"{ch_def['title']}：{first_line}")
 
-            except Exception as e:
-                logger.error(
-                    "tender_chapter_failed",
-                    chapter=ch_def["number"],
-                    error=str(e),
-                )
-                chapters.append({
-                    "chapter": ch_def["number"],
-                    "title": ch_def["title"],
-                    "content": f"[章节生成失败: {str(e)[:100]}]",
-                    "word_count": 0,
-                })
-
-        # Generate executive summary from collected parts
+        # Generate executive summary
         exec_summary = await self._write_executive_summary(
             executive_summary_parts, context_str
         )
 
-        total_words = sum(ch["word_count"] for ch in chapters)
+        total_words = sum(ch["word_count"] for ch in chapters if ch)
 
         return {
-            "document_structure": chapters,
+            "document_structure": [ch for ch in chapters if ch],
             "executive_summary": exec_summary,
-            "key_differentiators": self._extract_differentiators(chapters),
+            "key_differentiators": self._extract_differentiators([ch for ch in chapters if ch]),
             "total_word_count": total_words,
-            "chapters_completed": len([c for c in chapters if c["word_count"] > 0]),
+            "chapters_completed": len([c for c in chapters if c and c["word_count"] > 50]),
             "chapters_total": len(CHAPTERS),
             "_confidence": 0.85 if total_words > 3000 else 0.6,
         }
+
+    async def _write_chapter_safe(
+        self, ch_def: dict, data_map: dict, context_str: str
+    ) -> str:
+        """Write a chapter with error handling."""
+        try:
+            content = await self._write_chapter(ch_def, data_map, context_str)
+            logger.info(
+                "tender_chapter_done",
+                chapter=ch_def["number"],
+                title=ch_def["title"],
+                words=len(content),
+            )
+            return content
+        except Exception as e:
+            logger.error(
+                "tender_chapter_failed",
+                chapter=ch_def["number"],
+                error=str(e),
+            )
+            return f"[章节生成失败: {str(e)[:100]}]"
 
     async def _write_chapter(
         self, ch_def: dict, data_map: dict, context_str: str
@@ -179,11 +187,11 @@ class TenderWriterAgent(BaseAgent):
 ## 相关分析数据
 {data_str}
 
-请撰写 500-800 字的完整章节内容。使用小标题分段，引用具体数据。
+请撰写 600-1000 字的完整章节内容。使用小标题分段，引用具体数据。
 直接输出正文，不需要输出章节标题。"""
 
         # Use the base class LLM call (not JSON mode)
-        return await self.call_llm(prompt, max_tokens=2000)
+        return await self.call_llm(prompt, max_tokens=3000)
 
     async def _write_executive_summary(
         self, parts: list[str], context_str: str
