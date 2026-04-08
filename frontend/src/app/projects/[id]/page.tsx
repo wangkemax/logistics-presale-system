@@ -30,36 +30,45 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     return JSON.stringify(v);
   };
 
-  // Special renderers for known stage types
-  // Stage 1: Requirements
-  if (stageNumber === 1 && data.requirements) {
+  // Helper: get field with multiple key fallbacks
+  const g = (obj: any, ...keys: string[]) => {
+    if (!obj || typeof obj !== "object") return undefined;
+    for (const k of keys) {
+      if (obj[k] !== undefined) return obj[k];
+    }
+    return undefined;
+  };
+
+  // Stage 1: Requirements (keys: requirements / no Chinese variant — S1 has _uploaded_text)
+  if (stageNumber === 1 && (data.requirements || data._uploaded_text)) {
     return (
       <div className="space-y-4">
-        {data.executive_summary && <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{data.executive_summary}</p>}
-        {data.project_overview && (
+        {(data.executive_summary || data.执行摘要) && <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{data.executive_summary || data.执行摘要}</p>}
+        {(data.project_overview || data.项目概况) && (
           <div className="grid grid-cols-2 gap-2">
-            {Object.entries(data.project_overview).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+            {Object.entries(data.project_overview || data.项目概况).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
               <div key={k} className="text-sm"><span className="text-gray-500">{k}:</span> <span className="text-gray-900">{renderVal(v)}</span></div>
             ))}
           </div>
         )}
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">需求清单 ({data.requirements.length} 项)</p>
-          <div className="space-y-1 max-h-[400px] overflow-auto">
-            {data.requirements.slice(0, 30).map((r: any, i: number) => (
-              <div key={i} className="flex items-start gap-2 text-sm py-1.5 px-3 rounded hover:bg-gray-50">
-                <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 ${r.priority === "P0" ? "bg-red-100 text-red-700" : r.priority === "P1" ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}>{r.priority}</span>
-                <span className="text-gray-800 flex-1">{r.description}</span>
-                {r.clarity && <span className="text-xs text-gray-400">{r.clarity}</span>}
-              </div>
-            ))}
+        {data.requirements && (
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">需求清单 ({data.requirements.length} 项)</p>
+            <div className="space-y-1 max-h-[400px] overflow-auto">
+              {data.requirements.slice(0, 30).map((r: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 text-sm py-1.5 px-3 rounded hover:bg-gray-50">
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 ${r.priority === "P0" ? "bg-red-100 text-red-700" : r.priority === "P1" ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}>{r.priority}</span>
+                  <span className="text-gray-800 flex-1">{r.description || r.描述}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
-  // Stage 10: Tender chapters
+  // Stage 10: Tender chapters (S10 uses English keys from tender_writer)
   if (stageNumber === 10 && data.document_structure) {
     return (
       <div className="space-y-4">
@@ -82,16 +91,23 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     );
   }
 
-  // Stage 5: Solution Design
-  if (stageNumber === 5 && (data.executive_summary || data.warehouse_design)) {
+  // Stage 5: Solution Design (Chinese: 执行摘要/仓库设计/人员配置/绩效指标)
+  const s5summary = g(data, "executive_summary", "执行摘要");
+  const s5warehouse = g(data, "warehouse_design", "仓库设计");
+  const s5staffing = g(data, "staffing", "人员配置");
+  const s5perf = g(data, "performance", "绩效指标");
+  if (stageNumber === 5 && (s5summary || s5warehouse)) {
+    const area = g(s5warehouse, "total_area_sqm", "总面积平方米", "总面积平米", "总面积");
+    const headcount = g(s5staffing, "total_headcount", "总人数");
+    const accuracy = g(s5perf, "accuracy_target", "准确率目标");
     return (
       <div className="space-y-4">
-        {data.executive_summary && <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded-lg border border-blue-100">{data.executive_summary}</p>}
+        {s5summary && <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded-lg border border-blue-100">{s5summary}</p>}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "仓库面积", val: data.warehouse_design?.total_area_sqm ? `${Number(data.warehouse_design.total_area_sqm).toLocaleString()} ㎡` : "—" },
-            { label: "人员编制", val: data.staffing?.total_headcount || "—" },
-            { label: "准确率", val: data.performance?.accuracy_target || "—" },
+            { label: "仓库面积", val: area ? `${Number(area).toLocaleString()} ㎡` : "—" },
+            { label: "人员编制", val: headcount || "—" },
+            { label: "准确率", val: accuracy || "—" },
           ].map(k => (
             <div key={k.label} className="bg-gray-50 rounded-lg p-3 text-center">
               <p className="text-lg font-bold text-gray-900">{k.val}</p>
@@ -106,22 +122,27 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     );
   }
 
-  // Stage 6: Automation
-  if (stageNumber === 6 && data.recommendations) {
+  // Stage 6: Automation (Chinese: 推荐方案/自动化水平/总自动化投资)
+  const s6recs = g(data, "recommendations", "推荐方案");
+  if (stageNumber === 6 && s6recs) {
+    const recsArr = Array.isArray(s6recs) ? s6recs : [];
     return (
       <div className="space-y-3">
-        <p className="text-sm text-gray-600">自动化等级: <span className="font-medium text-gray-900">{data.automation_level || "—"}</span></p>
-        {data.recommendations.slice(0, 6).map((rec: any, i: number) => (
+        <p className="text-sm text-gray-600">自动化等级: <span className="font-medium text-gray-900">{g(data, "automation_level", "自动化水平") || "—"}</span></p>
+        {g(data, "total_automation_investment", "总自动化投资") && (
+          <p className="text-sm text-gray-600">总投资: <span className="font-medium text-gray-900">¥{(Number(g(data, "total_automation_investment", "总自动化投资")) / 10000).toFixed(0)}万</span></p>
+        )}
+        {recsArr.slice(0, 6).map((rec: any, i: number) => (
           <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-medium text-gray-900">{rec.technology || rec.name}</span>
-              <span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded">{rec.suitability_score}/10</span>
+              <span className="text-sm font-medium text-gray-900">{rec.technology || rec.技术 || rec.name || rec.名称}</span>
+              <span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded">{rec.suitability_score || rec.适配度评分 || "—"}/10</span>
             </div>
-            <p className="text-xs text-gray-500">{rec.application_area}</p>
+            <p className="text-xs text-gray-500">{rec.application_area || rec.应用场景 || ""}</p>
             <div className="flex gap-4 mt-1 text-xs text-gray-500">
-              {rec.estimated_cost_cny && <span>投资 ¥{(rec.estimated_cost_cny / 10000).toFixed(0)}万</span>}
-              {rec.roi_percent && <span>ROI {rec.roi_percent}%</span>}
-              {rec.payback_months && <span>回本 {rec.payback_months}月</span>}
+              {(rec.estimated_cost_cny || rec.预估投资) && <span>投资 ¥{(Number(rec.estimated_cost_cny || rec.预估投资) / 10000).toFixed(0)}万</span>}
+              {(rec.roi_percent || rec.投资回报率) && <span>ROI {rec.roi_percent || rec.投资回报率}%</span>}
+              {(rec.payback_months || rec.回本周期) && <span>回本 {rec.payback_months || rec.回本周期}月</span>}
             </div>
           </div>
         ))}
@@ -129,17 +150,22 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     );
   }
 
-  // Stage 8: Cost Model
-  if (stageNumber === 8 && data.financial_indicators) {
-    const fi = data.financial_indicators;
+  // Stage 8: Cost Model (Chinese: 财务指标/定价模型)
+  const s8fi = g(data, "financial_indicators", "财务指标");
+  const s8pricing = g(data, "pricing", "定价模型", "报价");
+  if (stageNumber === 8 && s8fi) {
+    const roi = g(s8fi, "roi_percent", "投资回报率", "ROI");
+    const irr = g(s8fi, "irr_percent", "内部收益率", "IRR");
+    const npv = g(s8fi, "npv_at_8pct", "净现值8折现", "净现值", "NPV");
+    const payback = g(s8fi, "payback_months", "回本周期月数", "回本周期");
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: "ROI", val: fi.roi_percent ? `${fi.roi_percent.toFixed(1)}%` : "—", color: "text-green-600" },
-            { label: "IRR", val: fi.irr_percent ? `${fi.irr_percent.toFixed(1)}%` : "—", color: "text-blue-600" },
-            { label: "NPV", val: fi.npv_at_8pct ? `¥${(fi.npv_at_8pct / 10000).toFixed(0)}万` : "—", color: "text-purple-600" },
-            { label: "回本周期", val: fi.payback_months ? `${fi.payback_months}个月` : "—", color: "text-gray-900" },
+            { label: "ROI", val: roi != null ? `${Number(roi).toFixed(1)}%` : "—", color: "text-green-600" },
+            { label: "IRR", val: irr != null ? `${Number(irr).toFixed(1)}%` : "—", color: "text-blue-600" },
+            { label: "NPV", val: npv != null ? `¥${(Number(npv) / 10000).toFixed(0)}万` : "—", color: "text-purple-600" },
+            { label: "回本周期", val: payback != null ? `${payback}个月` : "—", color: "text-gray-900" },
           ].map(k => (
             <div key={k.label} className="bg-gray-50 rounded-lg p-3 text-center">
               <p className={`text-xl font-bold ${k.color}`}>{k.val}</p>
@@ -147,9 +173,9 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
             </div>
           ))}
         </div>
-        {data.pricing && (
+        {s8pricing && (
           <div className="text-sm space-y-1">
-            {Object.entries(data.pricing).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+            {Object.entries(s8pricing).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
               <div key={k} className="flex gap-2"><span className="text-gray-500">{k}:</span> <span className="text-gray-900">{renderVal(v)}</span></div>
             ))}
           </div>
@@ -158,23 +184,28 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     );
   }
 
-  // Stage 9: Risk
-  if (stageNumber === 9 && (data.risk_matrix || data.overall_risk_level)) {
+  // Stage 9: Risk (Chinese: 风险矩阵/整体风险等级/前三大风险)
+  const s9matrix = g(data, "risk_matrix", "风险矩阵");
+  const s9level = g(data, "overall_risk_level", "整体风险等级");
+  if (stageNumber === 9 && (s9matrix || s9level)) {
+    const matrixArr = Array.isArray(s9matrix) ? s9matrix : [];
     return (
       <div className="space-y-3">
         <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
-          data.overall_risk_level === "LOW" ? "bg-green-50 text-green-700" :
-          data.overall_risk_level === "HIGH" ? "bg-red-50 text-red-700" :
+          s9level === "LOW" || s9level === "低" ? "bg-green-50 text-green-700" :
+          s9level === "HIGH" || s9level === "高" ? "bg-red-50 text-red-700" :
           "bg-orange-50 text-orange-700"
-        }`}>风险等级: {data.overall_risk_level || "—"}</div>
-        {(data.risk_matrix || []).slice(0, 8).map((r: any, i: number) => (
+        }`}>风险等级: {s9level || "—"}</div>
+        {matrixArr.slice(0, 8).map((r: any, i: number) => (
           <div key={i} className="flex items-start gap-2 text-sm p-2 rounded bg-gray-50">
             <span className={`text-xs px-1.5 py-0.5 rounded mt-0.5 ${
-              r.impact === "HIGH" ? "bg-red-100 text-red-700" : r.impact === "MEDIUM" ? "bg-orange-100 text-orange-700" : "bg-green-100 text-green-700"
-            }`}>{r.likelihood}/{r.impact}</span>
+              (r.impact === "HIGH" || r.影响 === "高") ? "bg-red-100 text-red-700" :
+              (r.impact === "MEDIUM" || r.影响 === "中") ? "bg-orange-100 text-orange-700" :
+              "bg-green-100 text-green-700"
+            }`}>{r.likelihood || r.可能性 || "?"}/{r.impact || r.影响 || "?"}</span>
             <div>
-              <p className="text-gray-800">{r.description}</p>
-              {r.mitigation && <p className="text-xs text-gray-500 mt-0.5">缓解: {r.mitigation}</p>}
+              <p className="text-gray-800">{r.description || r.描述 || r.风险描述}</p>
+              {(r.mitigation || r.缓解措施) && <p className="text-xs text-gray-500 mt-0.5">缓解: {r.mitigation || r.缓解措施}</p>}
             </div>
           </div>
         ))}
@@ -182,21 +213,28 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     );
   }
 
-  // Stage 11: QA verdict
-  if (stageNumber === 11 && data.overall_verdict) {
+  // Stage 11: QA verdict (Chinese: 整体判决/总结/P0问题数量/问题清单)
+  const s11verdict = g(data, "overall_verdict", "整体判决");
+  if (stageNumber === 11 && s11verdict) {
+    const p0 = g(data, "p0_count", "P0问题数量") || 0;
+    const p1 = g(data, "p1_count", "P1问题数量") || 0;
+    const p2 = g(data, "p2_count", "P2问题数量") || 0;
+    const summary = g(data, "summary", "总结");
+    const issues = g(data, "issues", "问题清单") || [];
+    const issuesArr = Array.isArray(issues) ? issues : [];
     return (
       <div className="space-y-4">
-        <div className={`px-4 py-3 rounded-lg text-sm font-medium ${data.overall_verdict === "PASS" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
-          判定: {data.overall_verdict} — P0: {data.p0_count}, P1: {data.p1_count}, P2: {data.p2_count}
+        <div className={`px-4 py-3 rounded-lg text-sm font-medium ${(s11verdict === "PASS" || s11verdict === "通过") ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+          判定: {s11verdict} — P0: {p0}, P1: {p1}, P2: {p2}
         </div>
-        {data.summary && <p className="text-sm text-gray-700">{data.summary}</p>}
+        {summary && <p className="text-sm text-gray-700">{summary}</p>}
         <div className="space-y-2">
-          {(data.issues || []).slice(0, 20).map((iss: any, i: number) => (
+          {issuesArr.slice(0, 20).map((iss: any, i: number) => (
             <div key={i} className="flex items-start gap-2 text-sm p-2 rounded bg-gray-50">
-              <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 ${iss.severity === "P0" ? "bg-red-100 text-red-700" : iss.severity === "P1" ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"}`}>{iss.severity}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 ${(iss.severity || iss.严重度) === "P0" ? "bg-red-100 text-red-700" : (iss.severity || iss.严重度) === "P1" ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"}`}>{iss.severity || iss.严重度}</span>
               <div className="flex-1">
-                <p className="text-gray-800">{iss.description}</p>
-                {iss.suggestion && <p className="text-xs text-gray-500 mt-0.5">建议: {iss.suggestion}</p>}
+                <p className="text-gray-800">{iss.description || iss.描述}</p>
+                {(iss.suggestion || iss.建议) && <p className="text-xs text-gray-500 mt-0.5">建议: {iss.suggestion || iss.建议}</p>}
               </div>
             </div>
           ))}
