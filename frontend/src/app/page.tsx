@@ -109,6 +109,7 @@ export default function DashboardPage() {
             <div className="divide-y divide-gray-100">
               {projectList.map((project) => {
                 const st = STATUS_MAP[project.status] || STATUS_MAP.created;
+                const completedStages = project.stages?.filter((s: any) => s.status === "completed").length || 0;
                 return (
                   <Link
                     key={project.id}
@@ -119,9 +120,13 @@ export default function DashboardPage() {
                       <p className="text-sm font-medium text-gray-900 truncate">{project.name}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {project.client_name || "未指定客户"} · {project.industry || "未指定行业"}
+                        {project.description && <span className="ml-2 text-gray-400">— {project.description.slice(0, 40)}</span>}
                       </p>
                     </div>
                     <div className="flex items-center gap-4 ml-4">
+                      {completedStages > 0 && (
+                        <span className="text-xs text-gray-400">{completedStages}/12 阶段</span>
+                      )}
                       <span className={`text-xs px-2.5 py-1 rounded-full ${st.color}`}>{st.label}</span>
                       <span className="text-xs text-gray-400">
                         {new Date(project.created_at).toLocaleDateString("zh-CN")}

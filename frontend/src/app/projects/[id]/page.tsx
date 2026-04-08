@@ -82,6 +82,106 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     );
   }
 
+  // Stage 5: Solution Design
+  if (stageNumber === 5 && (data.executive_summary || data.warehouse_design)) {
+    return (
+      <div className="space-y-4">
+        {data.executive_summary && <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded-lg border border-blue-100">{data.executive_summary}</p>}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "仓库面积", val: data.warehouse_design?.total_area_sqm ? `${Number(data.warehouse_design.total_area_sqm).toLocaleString()} ㎡` : "—" },
+            { label: "人员编制", val: data.staffing?.total_headcount || "—" },
+            { label: "准确率", val: data.performance?.accuracy_target || "—" },
+          ].map(k => (
+            <div key={k.label} className="bg-gray-50 rounded-lg p-3 text-center">
+              <p className="text-lg font-bold text-gray-900">{k.val}</p>
+              <p className="text-xs text-gray-500">{k.label}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-indigo-600 cursor-pointer hover:underline" onClick={() => window.location.href = window.location.pathname + '/solution'}>
+          → 点击查看完整方案设计工作台
+        </p>
+      </div>
+    );
+  }
+
+  // Stage 6: Automation
+  if (stageNumber === 6 && data.recommendations) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600">自动化等级: <span className="font-medium text-gray-900">{data.automation_level || "—"}</span></p>
+        {data.recommendations.slice(0, 6).map((rec: any, i: number) => (
+          <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-900">{rec.technology || rec.name}</span>
+              <span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded">{rec.suitability_score}/10</span>
+            </div>
+            <p className="text-xs text-gray-500">{rec.application_area}</p>
+            <div className="flex gap-4 mt-1 text-xs text-gray-500">
+              {rec.estimated_cost_cny && <span>投资 ¥{(rec.estimated_cost_cny / 10000).toFixed(0)}万</span>}
+              {rec.roi_percent && <span>ROI {rec.roi_percent}%</span>}
+              {rec.payback_months && <span>回本 {rec.payback_months}月</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Stage 8: Cost Model
+  if (stageNumber === 8 && data.financial_indicators) {
+    const fi = data.financial_indicators;
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: "ROI", val: fi.roi_percent ? `${fi.roi_percent.toFixed(1)}%` : "—", color: "text-green-600" },
+            { label: "IRR", val: fi.irr_percent ? `${fi.irr_percent.toFixed(1)}%` : "—", color: "text-blue-600" },
+            { label: "NPV", val: fi.npv_at_8pct ? `¥${(fi.npv_at_8pct / 10000).toFixed(0)}万` : "—", color: "text-purple-600" },
+            { label: "回本周期", val: fi.payback_months ? `${fi.payback_months}个月` : "—", color: "text-gray-900" },
+          ].map(k => (
+            <div key={k.label} className="bg-gray-50 rounded-lg p-3 text-center">
+              <p className={`text-xl font-bold ${k.color}`}>{k.val}</p>
+              <p className="text-xs text-gray-500">{k.label}</p>
+            </div>
+          ))}
+        </div>
+        {data.pricing && (
+          <div className="text-sm space-y-1">
+            {Object.entries(data.pricing).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+              <div key={k} className="flex gap-2"><span className="text-gray-500">{k}:</span> <span className="text-gray-900">{renderVal(v)}</span></div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Stage 9: Risk
+  if (stageNumber === 9 && (data.risk_matrix || data.overall_risk_level)) {
+    return (
+      <div className="space-y-3">
+        <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
+          data.overall_risk_level === "LOW" ? "bg-green-50 text-green-700" :
+          data.overall_risk_level === "HIGH" ? "bg-red-50 text-red-700" :
+          "bg-orange-50 text-orange-700"
+        }`}>风险等级: {data.overall_risk_level || "—"}</div>
+        {(data.risk_matrix || []).slice(0, 8).map((r: any, i: number) => (
+          <div key={i} className="flex items-start gap-2 text-sm p-2 rounded bg-gray-50">
+            <span className={`text-xs px-1.5 py-0.5 rounded mt-0.5 ${
+              r.impact === "HIGH" ? "bg-red-100 text-red-700" : r.impact === "MEDIUM" ? "bg-orange-100 text-orange-700" : "bg-green-100 text-green-700"
+            }`}>{r.likelihood}/{r.impact}</span>
+            <div>
+              <p className="text-gray-800">{r.description}</p>
+              {r.mitigation && <p className="text-xs text-gray-500 mt-0.5">缓解: {r.mitigation}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   // Stage 11: QA verdict
   if (stageNumber === 11 && data.overall_verdict) {
     return (
