@@ -9,6 +9,7 @@ export default function SolutionWorkbenchPage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<"overview" | "warehouse" | "operations" | "technology" | "staffing">("overview");
 
   // Smart renderer for objects — shows key:value pairs nicely instead of raw JSON

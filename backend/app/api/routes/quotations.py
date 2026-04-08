@@ -185,11 +185,13 @@ async def export_quotation_excel(
     excel_bytes = await generate_quotation_excel(excel_data)
 
     filename = f"报价单_{project.name}_{quotation.scheme_name}_v{quotation.version}.xlsx"
+    from urllib.parse import quote
+    encoded = quote(filename)
 
     return StreamingResponse(
         io.BytesIO(excel_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
     )
 
 

@@ -433,12 +433,25 @@ export default function ProjectDetailPage() {
         }
       );
       if (!res.ok) throw new Error("Generation failed");
-      const blob = await res.blob();
+
+      // Determine correct MIME type and extension
+      const extMap: Record<string, { ext: string; mime: string }> = {
+        tender: { ext: "docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+        ppt: { ext: "pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+        pdf: { ext: "pdf", mime: "application/pdf" },
+      };
+      const { ext, mime } = extMap[docType] || { ext: "bin", mime: "application/octet-stream" };
+
+      const rawBlob = await res.blob();
+      // Re-create blob with correct MIME type to prevent browser confusion
+      const blob = new Blob([rawBlob], { type: mime });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${project?.name || "document"}_${docType}.${docType === "ppt" ? "pptx" : docType === "pdf" ? "pdf" : "docx"}`;
+      a.download = `${project?.name || "document"}.${ext}`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
       showToast(`${docType === "ppt" ? "PPT" : docType === "pdf" ? "PDF" : "标书"} 已下载`);
     } catch (err: any) { showToast("生成失败: " + err.message); }
