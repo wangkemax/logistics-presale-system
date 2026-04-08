@@ -16,15 +16,15 @@ class LLMClient:
     def __init__(self):
         self.anthropic = AsyncAnthropic(
             api_key=settings.anthropic_api_key,
-            timeout=300.0,  # 5 minutes for long generations
+            timeout=600.0,  # 10 minutes for long tender chapters
             max_retries=0,  # We handle retries ourselves
         )
         self.primary_model = settings.llm_primary_model
         self.fallback_model = settings.llm_fallback_model
 
     @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(multiplier=2, min=3, max=30),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=3, min=5, max=60),
         retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),
     )
     async def generate(

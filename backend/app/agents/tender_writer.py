@@ -211,35 +211,32 @@ class TenderWriterAgent(BaseAgent):
         industry = project_context.get("industry", "物流")
         context_str = json.dumps(project_context, ensure_ascii=False, default=str)[:800]
 
-        # Generate chapters in pairs for speed
-        chapters = [None] * len(CHAPTERS)
+        # Generate chapters one by one (sequential to avoid rate limits)
+        chapters = []
         summary_parts = []
 
-        for batch_start in range(0, len(CHAPTERS), 2):
-            batch = CHAPTERS[batch_start: batch_start + 2]
-            tasks = [
-                self._write_chapter(ch_def, data_map, context_str, industry, project_context)
-                for ch_def in batch
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        for ch_def in CHAPTERS:
+            logger.info("tender_writing_chapter", chapter=ch_def["number"], title=ch_def["title"])
 
-            for ch_def, result in zip(batch, results):
-                idx = ch_def["number"] - 1
-                if isinstance(result, Exception):
-                    content = f"[章节生成失败: {str(result)[:200]}]"
-                    logger.error("tender_chapter_failed", chapter=ch_def["number"], error=str(result))
-                else:
-                    content = result
-                    logger.info("tender_chapter_done", chapter=ch_def["number"], words=len(content))
+            try:
+                content = await self._write_chapter(ch_def, data_map, context_str, industry, project_context)
+                logger.info("tender_chapter_done", chapter=ch_def["number"], words=len(content))
+            except Exception as e:
+                content = f"[章节生成失败: {str(e)[:200]}]"
+                logger.error("tender_chapter_failed", chapter=ch_def["number"], error=str(e))
 
-                chapters[idx] = {
-                    "chapter": ch_def["number"],
-                    "title": ch_def["title"],
-                    "content": content,
-                    "word_count": len(content),
-                }
-                first_line = content.split("\n")[0].strip()[:120]
-                summary_parts.append(f"第{ch_def['number']}章 {ch_def['title']}：{first_line}")
+            chapters.append({
+                "chapter": ch_def["number"],
+                "title": ch_def["title"],
+                "content": content,
+                "word_count": len(content),
+            })
+
+            first_line = content.split("\n")[0].strip()[:120]
+            summary_parts.append(f"第{ch_def['number']}章 {ch_def['title']}：{first_line}")
+
+            # Brief pause between chapters to avoid rate limiting
+            await asyncio.sleep(2)
 
         # Generate executive summary
         exec_summary = await self._write_executive_summary(summary_parts, context_str, project_context)
