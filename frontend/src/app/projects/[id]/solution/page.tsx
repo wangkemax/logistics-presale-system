@@ -11,6 +11,42 @@ export default function SolutionWorkbenchPage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [activeView, setActiveView] = useState<"overview" | "warehouse" | "operations" | "technology" | "staffing">("overview");
 
+  // Smart renderer for objects — shows key:value pairs nicely instead of raw JSON
+  function renderValue(val: any): string {
+    if (val === null || val === undefined) return "—";
+    if (typeof val === "string") return val;
+    if (typeof val === "number") return val.toLocaleString();
+    if (typeof val === "boolean") return val ? "是" : "否";
+    if (Array.isArray(val)) return val.map(v => typeof v === "string" ? v : renderValue(v)).join(", ");
+    return String(val);
+  }
+
+  function ObjectCard({ data, icon }: { data: any; icon?: string }) {
+    if (typeof data === "string") return <span className="text-sm text-gray-700">{data}</span>;
+    if (typeof data !== "object" || !data) return null;
+    const LABELS: Record<string, string> = {
+      type: "类型", name: "名称", capacity: "容量", description: "描述",
+      height: "高度", coverage: "覆盖区域", roi_months: "回本周期(月)",
+      length_meters: "长度(米)", strategy: "策略", methods: "方法",
+      productivity: "产能", accuracy_target: "准确率目标",
+      packing_strategy: "包装策略", shipping_methods: "运输方式",
+      cut_off_times: "截单时间", area_sqm: "面积(㎡)", zone: "区域",
+      application_area: "应用场景", suitability_score: "适配评分",
+      estimated_cost_cny: "投资估算", annual_savings_cny: "年节省",
+      roi_percent: "ROI", payback_months: "回本(月)", technology: "技术",
+    };
+    return (
+      <div className="space-y-1">
+        {Object.entries(data).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+          <div key={k} className="flex gap-2 text-sm">
+            <span className="text-gray-500 min-w-[80px]">{LABELS[k] || k}:</span>
+            <span className="text-gray-900">{renderValue(v)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   useEffect(() => {
     Promise.all([pApi.get(id), pApi.getStages(id)]).then(([p, s]) => {
       setProject(p);
@@ -156,11 +192,22 @@ export default function SolutionWorkbenchPage() {
             {warehouse.storage_systems && (
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h2 className="text-base font-semibold text-gray-900 mb-4">存储系统</h2>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {(Array.isArray(warehouse.storage_systems) ? warehouse.storage_systems : []).map((sys: any, i: number) => (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <span className="text-lg">🗄️</span>
-                      <span className="text-sm text-gray-700">{typeof sys === "string" ? sys : JSON.stringify(sys)}</span>
+                    <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="flex items-start gap-3">
+                        <span className="text-lg mt-0.5">🗄️</span>
+                        <div className="flex-1">
+                          {typeof sys === "string" ? (
+                            <p className="text-sm text-gray-700">{sys}</p>
+                          ) : (
+                            <>
+                              <p className="text-sm font-medium text-gray-900 mb-1">{sys.type || sys.name || `System ${i+1}`}</p>
+                              <ObjectCard data={sys} />
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -184,10 +231,10 @@ export default function SolutionWorkbenchPage() {
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{section}</p>
                   ) : (
                     <div className="space-y-2">
-                      {Object.entries(section).map(([k, v]) => (
+                      {Object.entries(section).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
                         <div key={k} className="flex gap-3 text-sm">
-                          <span className="text-gray-500 min-w-[100px]">{k}:</span>
-                          <span className="text-gray-900">{typeof v === "string" ? v : JSON.stringify(v)}</span>
+                          <span className="text-gray-500 min-w-[120px]">{k}:</span>
+                          <span className="text-gray-900">{renderValue(v)}</span>
                         </div>
                       ))}
                     </div>
@@ -206,11 +253,7 @@ export default function SolutionWorkbenchPage() {
                 <h2 className="text-base font-semibold text-gray-900 mb-3">WMS 系统</h2>
                 <div className="text-sm text-gray-700">
                   {typeof technology.wms === "string" ? technology.wms : (
-                    <div className="space-y-1">
-                      {Object.entries(technology.wms).map(([k, v]) => (
-                        <div key={k}><span className="text-gray-500">{k}:</span> {String(v)}</div>
-                      ))}
-                    </div>
+                    <ObjectCard data={technology.wms} />
                   )}
                 </div>
               </div>
@@ -219,10 +262,17 @@ export default function SolutionWorkbenchPage() {
             {technology.automation && (
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h2 className="text-base font-semibold text-gray-900 mb-3">自动化设备</h2>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   {(Array.isArray(technology.automation) ? technology.automation : []).map((item: any, i: number) => (
-                    <div key={i} className="p-3 bg-gray-50 rounded-lg text-sm text-gray-700">
-                      {typeof item === "string" ? item : JSON.stringify(item)}
+                    <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                      {typeof item === "string" ? (
+                        <p className="text-sm text-gray-700">{item}</p>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-gray-900 mb-1">{item.type || item.name || `Device ${i+1}`}</p>
+                          <ObjectCard data={item} />
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -236,7 +286,7 @@ export default function SolutionWorkbenchPage() {
                   {(Array.isArray(technology.integrations) ? technology.integrations : []).map((item: any, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
                       <span className="text-indigo-400">→</span>
-                      {typeof item === "string" ? item : JSON.stringify(item)}
+                      {typeof item === "string" ? item : renderValue(item)}
                     </div>
                   ))}
                 </div>
