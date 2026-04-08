@@ -14,6 +14,156 @@ const STAGE_NAMES = [
 
 const STAGE_ICONS = ["📋","📄","❓","📊","🔍","🏗️","🤖","📎","💰","⚠️","📝","✅"];
 
+// ── Formatted stage output renderer ──
+function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number }) {
+  if (!data || typeof data !== "object") return null;
+  if (data.error) {
+    return <div className="px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">{data.error}</div>;
+  }
+
+  const renderVal = (v: any): string => {
+    if (v === null || v === undefined) return "—";
+    if (typeof v === "string") return v;
+    if (typeof v === "number") return v.toLocaleString();
+    if (typeof v === "boolean") return v ? "是" : "否";
+    if (Array.isArray(v)) return v.length > 0 ? v.map(i => typeof i === "string" ? i : JSON.stringify(i)).join(", ") : "—";
+    return JSON.stringify(v);
+  };
+
+  // Special renderers for known stage types
+  // Stage 1: Requirements
+  if (stageNumber === 1 && data.requirements) {
+    return (
+      <div className="space-y-4">
+        {data.executive_summary && <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{data.executive_summary}</p>}
+        {data.project_overview && (
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(data.project_overview).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+              <div key={k} className="text-sm"><span className="text-gray-500">{k}:</span> <span className="text-gray-900">{renderVal(v)}</span></div>
+            ))}
+          </div>
+        )}
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">需求清单 ({data.requirements.length} 项)</p>
+          <div className="space-y-1 max-h-[400px] overflow-auto">
+            {data.requirements.slice(0, 30).map((r: any, i: number) => (
+              <div key={i} className="flex items-start gap-2 text-sm py-1.5 px-3 rounded hover:bg-gray-50">
+                <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 ${r.priority === "P0" ? "bg-red-100 text-red-700" : r.priority === "P1" ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}>{r.priority}</span>
+                <span className="text-gray-800 flex-1">{r.description}</span>
+                {r.clarity && <span className="text-xs text-gray-400">{r.clarity}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Stage 10: Tender chapters
+  if (stageNumber === 10 && data.document_structure) {
+    return (
+      <div className="space-y-4">
+        {data.executive_summary && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <p className="text-sm font-medium text-indigo-800 mb-1">执行摘要</p>
+            <p className="text-sm text-indigo-700 whitespace-pre-wrap">{data.executive_summary}</p>
+          </div>
+        )}
+        <p className="text-sm text-gray-500">共 {data.chapters_completed || data.document_structure.length} 章, {data.total_word_count?.toLocaleString() || "—"} 字</p>
+        {data.document_structure.map((ch: any) => (
+          <details key={ch.chapter} className="border border-gray-200 rounded-lg">
+            <summary className="px-4 py-3 text-sm font-medium text-gray-900 cursor-pointer hover:bg-gray-50">
+              第{ch.chapter}章 {ch.title} <span className="text-xs text-gray-400 ml-2">{ch.word_count} 字</span>
+            </summary>
+            <div className="px-4 pb-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{ch.content}</div>
+          </details>
+        ))}
+      </div>
+    );
+  }
+
+  // Stage 11: QA verdict
+  if (stageNumber === 11 && data.overall_verdict) {
+    return (
+      <div className="space-y-4">
+        <div className={`px-4 py-3 rounded-lg text-sm font-medium ${data.overall_verdict === "PASS" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+          判定: {data.overall_verdict} — P0: {data.p0_count}, P1: {data.p1_count}, P2: {data.p2_count}
+        </div>
+        {data.summary && <p className="text-sm text-gray-700">{data.summary}</p>}
+        <div className="space-y-2">
+          {(data.issues || []).slice(0, 20).map((iss: any, i: number) => (
+            <div key={i} className="flex items-start gap-2 text-sm p-2 rounded bg-gray-50">
+              <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 ${iss.severity === "P0" ? "bg-red-100 text-red-700" : iss.severity === "P1" ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"}`}>{iss.severity}</span>
+              <div className="flex-1">
+                <p className="text-gray-800">{iss.description}</p>
+                {iss.suggestion && <p className="text-xs text-gray-500 mt-0.5">建议: {iss.suggestion}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Generic: render top-level keys as sections
+  const skipKeys = ["_confidence", "_uploaded_text", "file_name", "file_count"];
+  const entries = Object.entries(data).filter(([k]) => !skipKeys.includes(k));
+
+  return (
+    <div className="space-y-3 max-h-[600px] overflow-auto">
+      {data._confidence !== undefined && (
+        <p className="text-xs text-gray-400">置信度: {(data._confidence * 100).toFixed(0)}%</p>
+      )}
+      {entries.map(([key, value]) => {
+        if (typeof value === "string" && value.length > 100) {
+          return (
+            <details key={key} className="border border-gray-200 rounded-lg">
+              <summary className="px-4 py-2 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50">{key}</summary>
+              <div className="px-4 pb-3 text-sm text-gray-700 whitespace-pre-wrap">{value}</div>
+            </details>
+          );
+        }
+        if (Array.isArray(value) && value.length > 0) {
+          return (
+            <details key={key} className="border border-gray-200 rounded-lg" open={value.length <= 5}>
+              <summary className="px-4 py-2 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50">{key} ({value.length})</summary>
+              <div className="px-4 pb-3 space-y-1">
+                {value.slice(0, 20).map((item, i) => (
+                  <div key={i} className="text-sm text-gray-700 py-1 border-b border-gray-50">
+                    {typeof item === "string" ? item : typeof item === "object" ? (
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{Object.entries(item).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+                        <div key={k}><span className="text-gray-500 text-xs">{k}:</span> <span className="text-gray-800 text-xs">{renderVal(v)}</span></div>
+                      ))}</div>
+                    ) : renderVal(item)}
+                  </div>
+                ))}
+              </div>
+            </details>
+          );
+        }
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+          return (
+            <details key={key} className="border border-gray-200 rounded-lg">
+              <summary className="px-4 py-2 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50">{key}</summary>
+              <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-1">
+                {Object.entries(value).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+                  <div key={k} className="text-sm"><span className="text-gray-500">{k}:</span> <span className="text-gray-900 ml-1">{renderVal(v)}</span></div>
+                ))}
+              </div>
+            </details>
+          );
+        }
+        return (
+          <div key={key} className="flex gap-3 text-sm px-1">
+            <span className="text-gray-500 min-w-[120px]">{key}:</span>
+            <span className="text-gray-900">{renderVal(value)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
