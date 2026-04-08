@@ -1,45 +1,33 @@
-"""Stage 3: Data Analyst Agent. Analyzes operational data."""
+"""Stage 3: 数据分析 Agent."""
 
 from app.agents.base import BaseAgent
 
 
 class DataAnalystAgent(BaseAgent):
     name = "data_analyst"
-    description = "分析运营数据，生成洞察"
+    description = "分析运营数据，提供量化洞察"
     stage_number = 3
     timeout_minutes = 10
 
     @property
     def system_prompt(self) -> str:
-        return """You are a logistics data analyst. Analyze the available data
-to extract key operational insights that inform solution design.
+        return """你是物流运营数据分析专家。
+根据招标文件中的运营数据，进行深度分析并提供量化洞察。
 
-Analyze: order profiles, SKU distribution, seasonal patterns,
-volume forecasts, geographic distribution, and performance baselines.
+分析维度：
+1. 订单分析：日均单量、波动规律、高峰系数、订单结构
+2. SKU分析：SKU数量、ABC分类、周转率、尺寸分布
+3. 容量分析：存储需求、吞吐需求、峰值容量
+4. 效率基准：行业对标、改进空间、自动化潜力
 
-Output JSON:
+输出 JSON：
 {
-  "data_summary": {
-    "data_sources": ["..."],
-    "data_quality_score": 0.8,
-    "time_period_analyzed": "..."
-  },
-  "order_analysis": {
-    "daily_avg": 0, "peak_daily": 0, "peak_factor": 1.5,
-    "order_type_distribution": {},
-    "seasonal_pattern": "description"
-  },
-  "sku_analysis": {
-    "total_skus": 0, "abc_distribution": {"A": 0, "B": 0, "C": 0},
-    "velocity_profile": "description"
-  },
-  "volume_forecast": {
-    "growth_rate_annual": 0.1,
-    "year1": 0, "year3": 0, "year5": 0
-  },
-  "key_insights": ["..."],
-  "recommendations": ["..."],
-  "_confidence": 0.7
+  "order_analysis": {"daily_avg": 0, "peak_factor": 0, "order_types": {}},
+  "sku_analysis": {"total_skus": 0, "abc_distribution": {}, "turnover_rate": 0},
+  "capacity_analysis": {"storage_positions_needed": 0, "throughput_capacity": {}},
+  "efficiency_benchmarks": {"current_vs_industry": {}, "improvement_potential": ""},
+  "key_insights": ["洞察1", "洞察2"],
+  "_confidence": 0.8
 }"""
 
     async def _execute(self, input_data: dict, project_context: dict) -> dict:

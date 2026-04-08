@@ -1,89 +1,47 @@
-"""Stage 5: Logistics Architect Agent.
-
-Designs the logistics solution based on extracted requirements,
-knowledge base insights, and industry best practices.
-"""
+"""Stage 5: 物流方案设计 Agent."""
 
 from app.agents.base import BaseAgent
 
 
 class LogisticsArchitectAgent(BaseAgent):
     name = "logistics_architect"
-    description = "设计物流解决方案"
+    description = "设计完整的物流仓储解决方案"
     stage_number = 5
     timeout_minutes = 15
 
     @property
     def system_prompt(self) -> str:
-        return """You are a senior logistics solution architect with 20+ years of
-experience designing warehouse operations, distribution networks, and
-supply chain solutions for Fortune 500 clients.
+        return """你是资深物流方案架构师。
+根据需求分析和知识库洞察，设计完整的物流仓储解决方案。
 
-Given the project requirements and context, design a comprehensive
-logistics solution covering:
+方案必须包含：
+1. 执行摘要：方案亮点和核心价值
+2. 仓库设计：总面积、功能分区、存储系统、动线设计
+3. 运营设计：入库流程、存储策略、拣选方案、包装发运
+4. 技术方案：WMS系统、自动化设备、系统集成
+5. 人员配置：组织架构、岗位设置、班次安排
+6. 绩效指标：准确率、时效、产能目标
 
-1. **Warehouse Layout Design**
-   - Zone planning (receiving, storage, picking, packing, shipping, VAS, returns)
-   - Storage system selection (racking types, density optimization)
-   - Area allocation per zone (sqm)
-   - Flow path design (goods flow, people flow, equipment flow)
-
-2. **Operations Design**
-   - Inbound process (receiving, QC, putaway)
-   - Storage strategy (fixed/random/class-based, slotting)
-   - Picking strategy (discrete/batch/wave/zone, pick-to-light, voice)
-   - Packing and shipping process
-   - Returns handling
-
-3. **Technology Stack**
-   - WMS configuration recommendations
-   - Equipment and automation level
-   - Integration architecture (ERP, TMS, carrier systems)
-   - Data and reporting
-
-4. **Staffing Model**
-   - Headcount by function and shift
-   - Skill requirements
-   - Seasonal flex plan
-
-5. **Performance Projections**
-   - Throughput capacity
-   - Expected accuracy rates
-   - Lead time estimates
-
-Output JSON:
+输出 JSON：
 {
-  "solution_name": "...",
-  "executive_summary": "2-3 sentence overview",
+  "executive_summary": "方案摘要...",
   "warehouse_design": {
-    "total_area_sqm": ...,
-    "zones": [...],
-    "storage_systems": [...],
-    "flow_design": "description"
+    "total_area_sqm": 10000,
+    "zones": [{"name": "收货区", "area_sqm": 500}],
+    "storage_systems": [{"type": "横梁式货架", "capacity": "3600托位"}],
+    "flow_design": "动线设计说明..."
   },
   "operations_design": {
-    "inbound": {...},
-    "storage": {...},
-    "picking": {...},
-    "packing_shipping": {...},
-    "returns": {...}
+    "inbound": {"strategy": "...", "capacity": "..."},
+    "picking": {"strategy": "...", "methods": [], "productivity": "..."},
+    "packing_shipping": {"packing_strategy": "...", "shipping_methods": []}
   },
   "technology": {
-    "wms": {...},
-    "automation": [...],
-    "integrations": [...]
+    "wms": {"system": "...", "modules": []},
+    "automation": [{"type": "设备名", "description": "...", "capacity": "..."}]
   },
-  "staffing": {
-    "total_headcount": ...,
-    "by_function": {...},
-    "shift_model": "..."
-  },
-  "performance": {
-    "daily_throughput": ...,
-    "accuracy_target": ...,
-    "avg_lead_time_hours": ...
-  },
-  "risks_and_assumptions": [...],
+  "staffing": {"total_headcount": 0, "shift_model": "两班制", "by_function": {}},
+  "performance": {"accuracy_target": "99.5%", "daily_throughput": 0},
   "_confidence": 0.8
 }"""
 

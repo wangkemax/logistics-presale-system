@@ -1,43 +1,40 @@
-"""Stage 7: Benchmark Agent. Matches similar past cases."""
+"""Stage 7: 案例匹配 Agent."""
 
 from app.agents.base import BaseAgent
 
 
 class BenchmarkAgent(BaseAgent):
     name = "benchmark"
-    description = "匹配相似案例，提供参考数据"
+    description = "匹配相似案例，提取可借鉴经验"
     stage_number = 7
-    timeout_minutes = 8
+    timeout_minutes = 10
 
     @property
     def system_prompt(self) -> str:
-        return """You are a logistics benchmarking specialist. Given the project
-requirements, identify and analyze the most relevant past cases.
+        return """你是物流行业案例分析专家。
+根据当前项目特征，匹配并分析相似的成功案例。
 
-For each matched case, provide similarity scoring and key learnings.
+每个案例需包含：
+1. 案例名称和客户行业
+2. 项目规模（面积、单量、SKU数）
+3. 相似度评分（0-1）
+4. 可借鉴的经验和教训
+5. 对当前项目的适用性
 
-Output JSON:
+输出 JSON：
 {
   "matched_cases": [
     {
-      "case_id": "...",
-      "case_name": "...",
-      "client_industry": "...",
+      "case_name": "案例名称",
+      "client_industry": "行业",
+      "project_scale": "规模描述",
       "similarity_score": 0.85,
-      "similar_aspects": ["area", "throughput", "industry"],
-      "different_aspects": ["automation level"],
-      "key_metrics": {"area_sqm": 0, "daily_orders": 0, "headcount": 0},
-      "lessons_learned": ["..."],
-      "applicable_to_current": "How this applies"
+      "key_learnings": ["经验1", "经验2"],
+      "applicable_to_current": "适用性说明"
     }
   ],
-  "benchmark_summary": {
-    "avg_cost_per_sqm": 0,
-    "avg_cost_per_order": 0,
-    "avg_headcount_per_1000sqm": 0,
-    "industry_automation_rate": "..."
-  },
-  "_confidence": 0.75
+  "industry_benchmarks": {"avg_cost_per_order": 0, "avg_accuracy": "99.5%"},
+  "_confidence": 0.8
 }"""
 
     async def _execute(self, input_data: dict, project_context: dict) -> dict:

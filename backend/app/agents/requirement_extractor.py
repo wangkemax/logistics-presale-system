@@ -1,8 +1,4 @@
-"""Stage 1: Tender Requirement Extractor Agent.
-
-Parses uploaded tender documents (PDF/Word) and extracts
-structured requirements for downstream agents.
-"""
+"""Stage 1: 招标文件需求提取 Agent."""
 
 from app.agents.base import BaseAgent
 
@@ -15,54 +11,42 @@ class RequirementExtractorAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return """You are a senior logistics presale consultant specializing in
-analyzing tender documents. Your task is to extract structured requirements
-from tender/RFP documents.
+        return """你是一位资深的物流售前顾问，擅长分析招标文件。
+你的任务是从招标/RFP文件中提取结构化需求。
 
-Extract the following categories:
-1. **Basic Info**: Project name, client, industry, location, timeline, budget range
-2. **Logistics Requirements**: Warehouse specs (area, temperature, zones), 
-   throughput (inbound/outbound volumes), SKU profile, order types
-3. **Service Scope**: Storage, picking, packing, shipping, returns, VAS
-4. **Technology Requirements**: WMS, TMS, automation, integration needs
-5. **SLA Requirements**: Accuracy rates, lead times, availability
-6. **Compliance**: Certifications, safety, environmental, regulatory
-7. **Commercial Terms**: Contract period, payment terms, pricing model
-8. **Evaluation Criteria**: Scoring weights, mandatory requirements
+提取以下类别：
+1. 基本信息：项目名称、客户、行业、地点、时间线、预算范围
+2. 物流需求：仓库规格（面积、温度、分区）、吞吐量、SKU概况、订单类型
+3. 服务范围：存储、拣选、包装、发运、退货、增值服务
+4. 技术需求：WMS、TMS、自动化、系统集成
+5. SLA要求：准确率、时效、可用性
+6. 合规要求：认证、安全、环保、法规
+7. 商务条款：合同期限、付款方式、定价模型
+8. 评标标准：评分权重、强制性要求
 
-For each requirement, assign:
-- priority: P0 (mandatory) / P1 (important) / P2 (nice-to-have)
+每条需求标注：
+- priority: P0（必须）/ P1（重要）/ P2（加分项）
 - clarity: clear / ambiguous / missing
-- source_reference: page/section in the original document
 
-Respond in JSON format with the structure:
+输出 JSON 格式：
 {
-  "project_overview": {...},
-  "requirements": [
-    {
-      "id": "REQ-001",
-      "category": "...",
-      "description": "...",
-      "priority": "P0",
-      "clarity": "clear",
-      "source_reference": "Section 3.2, Page 12",
-      "raw_text": "original text from document"
-    }
-  ],
-  "key_metrics": {
-    "warehouse_area_sqm": null,
-    "daily_order_volume": null,
-    "sku_count": null,
-    "temperature_zones": []
+  "project_overview": {
+    "project_name": "", "client_name": "", "industry": "",
+    "location": "", "timeline": "", "budget_range": ""
   },
-  "missing_critical_info": ["list of P0 info not found in document"],
-  "_confidence": 0.85
+  "requirements": [
+    {"id": "REQ-001", "category": "物流需求", "description": "...", "priority": "P0", "clarity": "clear"}
+  ],
+  "key_metrics": {"warehouse_area_sqm": 0, "daily_order_volume": 0, "sku_count": 0},
+  "missing_critical_info": ["缺失信息1"],
+  "_confidence": 0.8
 }"""
 
     async def _execute(self, input_data: dict, project_context: dict) -> dict:
         """Parse tender document text and extract structured requirements."""
         document_text = input_data.get("document_text", "")
         file_name = input_data.get("file_name", "unknown")
+        file_count = input_data.get("file_count", 1)
 
         if not document_text:
             return {
@@ -71,22 +55,37 @@ Respond in JSON format with the structure:
                 "_confidence": 0.0,
             }
 
-        prompt = f"""Analyze the following tender document and extract all requirements.
+        # Identify if Excel/CSV data is present
+        has_data_files = "=== SHEET:" in document_text or "=== CSV DATA" in document_text or "=== FILE:" in document_text
 
-Document: {file_name}
+        data_instruction = ""
+        if has_data_files:
+            data_instruction = """
+IMPORTANT: The upload contains structured data files (Excel/CSV appendices).
+- Analyze the ACTUAL DATA in these files (dealer lists, volumes, SKU counts, etc.)
+- Use real numbers from the data, not assumptions
+- Reference specific sheet names and row counts in your analysis
+- Extract key metrics directly from the data (e.g., count unique dealers, sum volumes)
+"""
+
+        prompt = f"""Analyze the following tender document(s) and extract all requirements.
+
+Files uploaded: {file_count} file(s) — {file_name}
+{data_instruction}
 
 --- DOCUMENT CONTENT ---
-{document_text[:30000]}
+{document_text[:50000]}
 --- END DOCUMENT ---
 
 Extract ALL requirements following the schema in your instructions.
 Pay special attention to:
 - Warehouse area, temperature requirements, throughput volumes
-- Automation and technology specifications
+- Automation and technology specifications  
 - SLA targets and penalty clauses
-- Contract duration and commercial terms"""
+- Contract duration and commercial terms
+- Any numerical data from appendices (dealer count, order volumes, SKU list)"""
 
-        result = await self.call_llm_json(prompt, max_tokens=8000)
+        result = await self.call_llm_json(prompt, max_tokens=8000, project_context=project_context)
         return result
 
     async def validate_output(self, output: dict) -> list[dict]:

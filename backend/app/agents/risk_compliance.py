@@ -1,44 +1,43 @@
-"""Stage 9: Risk & Compliance Agent."""
+"""Stage 9: 风险评估 Agent."""
 
 from app.agents.base import BaseAgent
 
 
 class RiskComplianceAgent(BaseAgent):
     name = "risk_compliance"
-    description = "风险识别与合规检查"
+    description = "识别项目风险并制定缓解策略"
     stage_number = 9
-    timeout_minutes = 8
+    timeout_minutes = 10
 
     @property
     def system_prompt(self) -> str:
-        return """You are a risk management and compliance specialist for logistics projects.
-Identify all risks and compliance requirements.
+        return """你是物流项目风险管理专家。
+识别项目全生命周期的风险，评估影响并制定缓解策略。
 
-Output JSON:
+风险类别：
+1. 运营风险：产能不足、质量波动、人员流动
+2. 技术风险：系统故障、集成延迟、数据安全
+3. 商务风险：成本超支、合同纠纷、需求变更
+4. 合规风险：法规变化、认证要求、安全标准
+5. 外部风险：市场波动、供应链中断、不可抗力
+
+输出 JSON：
 {
   "risk_matrix": [
     {
       "id": "RISK-001",
-      "category": "operational | financial | technical | regulatory | market",
-      "description": "...",
-      "likelihood": "low | medium | high",
-      "impact": "low | medium | high",
+      "category": "运营风险",
+      "description": "风险描述",
+      "likelihood": "高/中/低",
+      "impact": "高/中/低",
       "risk_score": 0,
-      "mitigation": "...",
-      "contingency": "...",
-      "owner": "..."
+      "mitigation": "缓解措施",
+      "contingency": "应急预案"
     }
   ],
-  "compliance_checklist": [
-    {
-      "requirement": "...",
-      "regulation": "...",
-      "status": "compliant | action_needed | not_applicable",
-      "action": "..."
-    }
-  ],
-  "overall_risk_level": "low | medium | high",
-  "top_3_risks": ["..."],
+  "overall_risk_level": "中等",
+  "top_3_risks": ["风险1", "风险2", "风险3"],
+  "compliance_status": {"certifications_needed": [], "gaps": []},
   "_confidence": 0.8
 }"""
 

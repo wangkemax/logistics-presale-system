@@ -383,11 +383,8 @@ export default function ProjectDetailPage() {
                   )}
                   {selected.output_data && !selected.output_data._uploaded_text && (
                     <div>
-                      <p className="text-sm font-medium text-gray-600 mb-2">输出数据</p>
-                      <pre className="bg-gray-50 rounded-lg p-4 text-xs overflow-auto max-h-[500px] text-gray-700 border border-gray-200"
-                        style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                        {JSON.stringify(selected.output_data, null, 2)}
-                      </pre>
+                      <p className="text-sm font-medium text-gray-600 mb-3">输出数据</p>
+                      <StageOutputView data={selected.output_data} stageNumber={selected.stage_number} />
                     </div>
                   )}
                   {(!selected.output_data && selected.status === "pending") && (

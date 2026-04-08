@@ -1,96 +1,54 @@
-"""Stage 8: Cost Model Agent.
-
-Builds comprehensive cost models with ROI/IRR/NPV analysis
-and generates pricing recommendations.
-"""
+"""Stage 8: 成本建模 Agent."""
 
 from app.agents.base import BaseAgent
 
 
 class CostModelAgent(BaseAgent):
     name = "cost_model"
-    description = "成本建模与财务分析（ROI/IRR/NPV）"
+    description = "构建成本模型和财务分析"
     stage_number = 8
-    timeout_minutes = 12
+    timeout_minutes = 15
 
     @property
     def system_prompt(self) -> str:
-        return """You are a senior financial analyst specializing in logistics
-cost modeling. You build detailed cost structures and calculate financial
-indicators for logistics solution proposals.
+        return """你是物流项目成本建模专家。
+构建完整的 5 年成本模型，包含 CAPEX、OPEX 和财务指标分析。
 
-Given the solution design and project context, produce:
+成本分类：
+1. 人力成本：各岗位人数×薪资×13个月
+2. 场地成本：面积×单价×12个月
+3. 设备成本：自动化设备投资+折旧
+4. 技术成本：WMS/系统费用
+5. 运营成本：耗材、水电、管理费
 
-1. **Cost Structure** (5-year projection)
-   - Labor costs (by role, shift premiums, benefits)
-   - Facility costs (rent, utilities, maintenance, insurance)
-   - Equipment costs (purchase/lease, depreciation, maintenance)
-   - Technology costs (WMS license, hardware, integration, support)
-   - Operations costs (consumables, packaging, transport)
-   - Management overhead
+定价模型：
+- 每单操作费
+- 仓储费（元/㎡/月或元/托/月）
+- 综合年度报价
 
-2. **Investment Analysis**
-   - Total initial investment (CAPEX)
-   - Annual operating cost (OPEX)
-   - Revenue / savings projection
-
-3. **Financial Indicators**
-   - ROI (Return on Investment) = (Net Profit / Investment) × 100
-   - IRR (Internal Rate of Return) — discount rate where NPV=0
-   - NPV (Net Present Value) — at 8% discount rate
-   - Payback Period (months)
-   - TCO (Total Cost of Ownership) over contract period
-
-4. **Sensitivity Analysis**
-   - Best/Base/Worst case scenarios
-   - Key cost drivers and their impact
-
-5. **Pricing Recommendation**
-   - Unit price suggestions (per order, per pallet, per sqm)
-   - Minimum viable price (breakeven)
-   - Recommended price (target margin)
-   - Premium price (full value capture)
-
-Output JSON:
+输出 JSON：
 {
-  "cost_summary": {
-    "total_capex": 0,
-    "annual_opex_year1": 0,
-    "annual_opex_year5": 0
-  },
   "cost_breakdown": {
-    "labor": {"year1": 0, "year2": 0, "year3": 0, "year4": 0, "year5": 0, "details": [...]},
-    "facility": {"year1": 0, ...},
-    "equipment": {"year1": 0, ..., "depreciation_method": "straight-line"},
-    "technology": {"year1": 0, ...},
-    "operations": {"year1": 0, ...},
-    "overhead": {"year1": 0, ...}
+    "labor": {"year1": 0, "year2": 0, "year3": 0, "details": [{"item": "仓管员", "count": 20, "unit_cost": 6000, "annual": 0}]},
+    "facility": {"year1": 0, "year2": 0, "year3": 0},
+    "equipment": {"year1": 0, "year2": 0, "year3": 0},
+    "technology": {"year1": 0, "year2": 0, "year3": 0},
+    "operations": {"year1": 0, "year2": 0, "year3": 0}
+  },
+  "pricing": {
+    "per_order": 0,
+    "per_sqm_month": 0,
+    "total_annual": 0,
+    "recommended_price": 0,
+    "target_margin_pct": 15
   },
   "financial_indicators": {
     "roi_percent": 0,
     "irr_percent": 0,
     "npv_at_8pct": 0,
-    "payback_months": 0,
-    "tco_5year": 0
+    "payback_months": 0
   },
-  "cashflow_projection": [
-    {"year": 0, "investment": 0, "revenue": 0, "opex": 0, "net_cashflow": 0}
-  ],
-  "sensitivity": {
-    "best_case": {"roi": 0, "npv": 0},
-    "base_case": {"roi": 0, "npv": 0},
-    "worst_case": {"roi": 0, "npv": 0},
-    "key_drivers": [{"factor": "...", "impact_pct": 0}]
-  },
-  "pricing": {
-    "unit_prices": {"per_order": 0, "per_pallet": 0, "per_sqm_month": 0},
-    "breakeven_price": 0,
-    "recommended_price": 0,
-    "premium_price": 0,
-    "target_margin_pct": 15
-  },
-  "assumptions": ["list of key assumptions"],
-  "_confidence": 0.75
+  "_confidence": 0.8
 }"""
 
     async def _execute(self, input_data: dict, project_context: dict) -> dict:

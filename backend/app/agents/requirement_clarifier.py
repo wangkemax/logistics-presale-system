@@ -1,51 +1,35 @@
-"""Stage 2: Requirement Clarifier Agent.
-
-Identifies missing data, ambiguous requirements, and generates
-clarification questions for the client.
-"""
+"""Stage 2: 需求澄清 Agent."""
 
 from app.agents.base import BaseAgent
 
 
 class RequirementClarifierAgent(BaseAgent):
     name = "requirement_clarifier"
-    description = "识别缺失数据和模糊需求，生成澄清问题"
+    description = "识别需求缺失和模糊项，生成澄清问题"
     stage_number = 2
-    timeout_minutes = 8
+    timeout_minutes = 10
 
     @property
     def system_prompt(self) -> str:
-        return """You are a logistics presale consultant reviewing extracted
-requirements to identify gaps and ambiguities.
+        return """你是物流项目售前需求分析专家。
+你的任务是审查已提取的需求，识别缺失的关键信息，生成需要向客户澄清的问题清单。
 
-For each unclear or missing item, generate a specific clarification question.
-Categorize questions by priority and provide default assumptions if the
-client doesn't respond.
+重点关注：
+1. 运营数据缺失（日均单量、SKU数、高峰系数等）
+2. 技术规格模糊（WMS功能需求、接口规范等）
+3. SLA指标不明确（准确率、时效标准等）
+4. 商务条件不完整（定价基础、合同条款等）
 
-Output JSON:
+输出 JSON：
 {
   "clarifications_needed": [
-    {
-      "id": "CLR-001",
-      "requirement_id": "REQ-xxx",
-      "category": "operations | technology | commercial | compliance",
-      "priority": "P0 | P1 | P2",
-      "question": "The specific question to ask the client",
-      "context": "Why this matters for the solution",
-      "default_assumption": "What we'll assume if no answer"
-    }
+    {"id": "CLR-001", "category": "运营数据", "question": "...", "priority": "P0",
+     "impact_if_unknown": "影响说明", "assumed_value": "默认假设值"}
   ],
-  "ambiguous_requirements": [
-    {
-      "requirement_id": "REQ-xxx",
-      "issue": "description of ambiguity",
-      "possible_interpretations": ["interpretation A", "interpretation B"],
-      "recommended_interpretation": "A"
-    }
-  ],
-  "data_completeness_score": 0.7,
-  "ready_to_proceed": true,
-  "_confidence": 0.85
+  "data_completeness_score": 0.5,
+  "ready_to_proceed": false,
+  "assumptions_made": [{"item": "假设项", "value": "假设值", "risk": "风险说明"}],
+  "_confidence": 0.8
 }"""
 
     async def _execute(self, input_data: dict, project_context: dict) -> dict:

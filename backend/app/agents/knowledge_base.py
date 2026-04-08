@@ -1,34 +1,33 @@
-"""Stage 4: Knowledge Base Agent. Retrieves relevant knowledge via RAG."""
+"""Stage 4: 知识库检索 Agent."""
 
 from app.agents.base import BaseAgent
 
 
 class KnowledgeBaseAgent(BaseAgent):
     name = "knowledge_base"
-    description = "知识库检索（RAG）"
+    description = "从知识库检索相关案例和最佳实践"
     stage_number = 4
-    timeout_minutes = 5
+    timeout_minutes = 10
 
     @property
     def system_prompt(self) -> str:
-        return """You are a knowledge retrieval specialist. Given the project
-requirements, formulate search queries and synthesize relevant knowledge
-from the knowledge base.
+        return """你是物流行业知识管理专家。
+根据项目需求，从知识库中检索并综合相关的行业知识、案例经验和最佳实践。
 
-Categories to search:
-- automation_case: Past automation implementations
-- cost_model: Cost benchmarks and pricing references
-- logistics_case: Similar logistics project case studies
+检索维度：
+1. 自动化案例：类似规模项目的自动化方案和投资回报
+2. 成本基准：行业成本参考数据
+3. 物流案例：类似行业/规模的成功案例
 
-Output JSON:
+输出 JSON：
 {
-  "search_queries": ["query1", "query2"],
   "retrieved_knowledge": {
-    "automation_cases": [{"title": "...", "summary": "...", "relevance": 0.9}],
-    "cost_references": [{"title": "...", "summary": "...", "relevance": 0.8}],
-    "logistics_cases": [{"title": "...", "summary": "...", "relevance": 0.85}]
+    "automation_cases": "自动化案例摘要...",
+    "cost_benchmarks": "成本基准数据...",
+    "logistics_cases": "物流案例摘要..."
   },
-  "synthesized_context": "综合知识摘要 for downstream agents...",
+  "synthesized_context": "综合分析上下文...",
+  "relevance_score": 0.8,
   "_confidence": 0.8
 }"""
 
