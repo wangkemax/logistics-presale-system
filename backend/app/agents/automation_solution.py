@@ -79,4 +79,4 @@ Recommend specific automation technologies with ROI analysis.
 Be realistic about costs and savings. Consider the client's
 scale, budget, and technical readiness."""
 
-        return await self.call_llm_json(prompt, max_tokens=6000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=6000)

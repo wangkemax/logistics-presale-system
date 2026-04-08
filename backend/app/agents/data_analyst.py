@@ -57,4 +57,4 @@ Output JSON:
 
 Extract patterns and provide actionable insights for solution design."""
 
-        return await self.call_llm_json(prompt, max_tokens=4000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=4000)

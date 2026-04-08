@@ -62,4 +62,4 @@ Cover: operational risks, financial risks, technology risks,
 regulatory compliance (fire safety, food safety if applicable,
 labor laws, environmental), market risks, and implementation risks."""
 
-        return await self.call_llm_json(prompt, max_tokens=5000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=5000)

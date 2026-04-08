@@ -81,14 +81,20 @@ class PipelineOrchestrator:
         document_text: str = "",
         notify_callback=None,
         resume_from: int = 0,
+        language: str = "",
     ) -> dict:
         """Run all stages sequentially, respecting QA gates.
         
         Args:
             resume_from: Stage number to resume from. Completed stages
                          will have their outputs loaded from DB instead of re-running.
+            language: Output language ("zh" or "en"). Defaults to config.
         """
+        from app.core.config import get_settings
+        lang = language or get_settings().default_language
+
         project_context = project.assumptions or {}
+        project_context["_output_language"] = lang
         stage_outputs: dict[int, dict] = {}
 
         # Load completed stage outputs when resuming

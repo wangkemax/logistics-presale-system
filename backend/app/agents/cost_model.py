@@ -123,7 +123,7 @@ rates for the region specified. Calculate all financial indicators.
 For any data not available, use reasonable assumptions and flag them.
 All monetary values in CNY (Chinese Yuan)."""
 
-        return await self.call_llm_json(prompt, max_tokens=8000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=8000)
 
     async def validate_output(self, output: dict) -> list[dict]:
         issues = await super().validate_output(output)

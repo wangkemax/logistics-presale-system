@@ -111,7 +111,7 @@ class TenderWriterAgent(BaseAgent):
         for batch_start in range(0, len(CHAPTERS), 2):
             batch = CHAPTERS[batch_start : batch_start + 2]
             tasks = [
-                self._write_chapter_safe(ch_def, data_map, context_str)
+                self._write_chapter_safe(ch_def, data_map, context_str, project_context)
                 for ch_def in batch
             ]
             results = await asyncio.gather(*tasks)
@@ -129,7 +129,7 @@ class TenderWriterAgent(BaseAgent):
 
         # Generate executive summary
         exec_summary = await self._write_executive_summary(
-            executive_summary_parts, context_str
+            executive_summary_parts, context_str, project_context
         )
 
         total_words = sum(ch["word_count"] for ch in chapters if ch)
@@ -145,11 +145,11 @@ class TenderWriterAgent(BaseAgent):
         }
 
     async def _write_chapter_safe(
-        self, ch_def: dict, data_map: dict, context_str: str
+        self, ch_def: dict, data_map: dict, context_str: str, project_context: dict | None = None
     ) -> str:
         """Write a chapter with error handling."""
         try:
-            content = await self._write_chapter(ch_def, data_map, context_str)
+            content = await self._write_chapter(ch_def, data_map, context_str, project_context)
             logger.info(
                 "tender_chapter_done",
                 chapter=ch_def["number"],
@@ -166,7 +166,7 @@ class TenderWriterAgent(BaseAgent):
             return f"[章节生成失败: {str(e)[:100]}]"
 
     async def _write_chapter(
-        self, ch_def: dict, data_map: dict, context_str: str
+        self, ch_def: dict, data_map: dict, context_str: str, project_context: dict | None = None
     ) -> str:
         """Write a single chapter using LLM."""
         # Gather relevant data for this chapter
@@ -194,10 +194,10 @@ class TenderWriterAgent(BaseAgent):
 直接输出正文，不需要输出章节标题。"""
 
         # Use the base class LLM call (not JSON mode)
-        return await self.call_llm(prompt, max_tokens=4096)
+        return await self.call_llm(prompt, max_tokens=4096, project_context=project_context)
 
     async def _write_executive_summary(
-        self, parts: list[str], context_str: str
+        self, parts: list[str], context_str: str, project_context: dict | None = None
     ) -> str:
         """Generate a cohesive executive summary."""
         parts_text = "\n".join(f"- {p}" for p in parts)
@@ -216,7 +216,7 @@ class TenderWriterAgent(BaseAgent):
 - 表达合作诚意
 直接输出摘要正文。"""
 
-        return await self.call_llm(prompt, max_tokens=2000)
+        return await self.call_llm(prompt, max_tokens=2000, project_context=project_context)
 
     def _build_data_map(self, all_outputs: dict) -> dict:
         """Extract and organize key data from all stage outputs."""

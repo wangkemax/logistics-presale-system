@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # ── Agent ──
     agent_default_timeout_minutes: int = 10
     agent_max_retries: int = 2
+    default_language: str = "zh"  # zh = 中文, en = English
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -68,4 +68,4 @@ Output JSON:
 Generate clarification questions for ALL gaps. Focus on data critical
 for solution design and cost modeling."""
 
-        return await self.call_llm_json(prompt, max_tokens=4000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=4000)

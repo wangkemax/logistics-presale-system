@@ -156,8 +156,12 @@ async def run_pipeline(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
+    language: str = "",
 ):
-    """Start the full 12-stage pipeline for a project."""
+    """Start the full 12-stage pipeline for a project.
+    
+    Query param `language`: 'zh' (default) or 'en' for output language.
+    """
     project = await _get_project(project_id, db)
 
     if project.status == "in_progress":
@@ -183,7 +187,7 @@ async def run_pipeline(
 
     # Run pipeline in background
     background_tasks.add_task(
-        _execute_pipeline_bg, project_id, doc_text
+        _execute_pipeline_bg, project_id, doc_text, 0, language
     )
 
     return {"message": "Pipeline started", "project_id": str(project_id)}
@@ -349,7 +353,7 @@ async def _get_project(project_id: UUID, db: AsyncSession) -> Project:
     return project
 
 
-async def _execute_pipeline_bg(project_id: UUID, doc_text: str, resume_from: int = 0):
+async def _execute_pipeline_bg(project_id: UUID, doc_text: str, resume_from: int = 0, language: str = ""):
     """Background task to execute the full pipeline (or resume from a stage)."""
     from app.core.database import AsyncSessionLocal
     from app.core.llm import get_llm_client
@@ -361,7 +365,7 @@ async def _execute_pipeline_bg(project_id: UUID, doc_text: str, resume_from: int
 
             orchestrator = PipelineOrchestrator(db, get_llm_client())
             await orchestrator.run_full_pipeline(
-                project, document_text=doc_text, resume_from=resume_from
+                project, document_text=doc_text, resume_from=resume_from, language=language
             )
 
             await db.commit()

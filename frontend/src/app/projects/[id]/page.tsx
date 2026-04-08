@@ -25,6 +25,7 @@ export default function ProjectDetailPage() {
   const [selectedStage, setSelectedStage] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [language, setLanguage] = useState<"zh" | "en">("zh");
   const [tab, setTab] = useState<"pipeline" | "quotation" | "qa" | "documents">("pipeline");
   const [toastMsg, setToastMsg] = useState("");
   const [generatingQuote, setGeneratingQuote] = useState(false);
@@ -128,7 +129,7 @@ export default function ProjectDetailPage() {
   async function handleRunPipeline() {
     setRunning(true);
     try {
-      await api.runPipeline(id);
+      await api.runPipeline(id, language);
       showToast("AI 分析已启动，请等待实时更新...");
       setProject(prev => prev ? { ...prev, status: "in_progress" } : prev);
     } catch (err: any) { showToast("启动失败: " + err.message); }
@@ -257,6 +258,11 @@ export default function ProjectDetailPage() {
                   从断点恢复
                 </button>
               )}
+              <select value={language} onChange={e => setLanguage(e.target.value as "zh" | "en")}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none bg-white">
+                <option value="zh">中文输出</option>
+                <option value="en">English</option>
+              </select>
               <button onClick={handleRunPipeline} disabled={running || project.status === "in_progress"}
                 className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50">
                 {project.status === "in_progress" ? "运行中..." : "启动 AI 分析"}

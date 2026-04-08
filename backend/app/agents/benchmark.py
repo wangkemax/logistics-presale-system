@@ -56,4 +56,4 @@ Output JSON:
 Match cases by: industry, warehouse size, throughput volume, automation level, geography.
 Score similarity 0-1. Extract applicable lessons."""
 
-        return await self.call_llm_json(prompt, max_tokens=5000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=5000)

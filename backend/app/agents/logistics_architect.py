@@ -109,7 +109,7 @@ Output JSON:
 Design the optimal solution following your instructions. Be specific with
 numbers (areas, headcounts, throughput). Justify key design decisions."""
 
-        return await self.call_llm_json(prompt, max_tokens=8000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=8000)
 
 
 def _fmt_dict(d: dict) -> str:

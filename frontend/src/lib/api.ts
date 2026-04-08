@@ -138,8 +138,8 @@ export const projects = {
     return res.json();
   },
 
-  runPipeline: (projectId: string) =>
-    request<{ message: string }>(`/api/v1/projects/${projectId}/run-pipeline`, {
+  runPipeline: (projectId: string, language: string = "zh") =>
+    request<{ message: string }>(`/api/v1/projects/${projectId}/run-pipeline?language=${language}`, {
       method: "POST",
     }),
 

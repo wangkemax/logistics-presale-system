@@ -97,7 +97,7 @@ Perform a thorough quality review:
 
 Be strict. Any P0 issue means FAIL verdict."""
 
-        return await self.call_llm_json(prompt, max_tokens=6000)
+        return await self.call_llm_json(prompt, project_context=project_context, max_tokens=6000)
 
     async def validate_output(self, output: dict) -> list[dict]:
         issues = []

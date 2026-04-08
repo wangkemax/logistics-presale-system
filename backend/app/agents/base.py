@@ -174,18 +174,27 @@ class BaseAgent(ABC):
         from app.api.routes.prompts import get_effective_prompt
         return get_effective_prompt(self.name, self.system_prompt)
 
-    async def call_llm(self, user_message: str, max_tokens: int = 4096) -> str:
+    def _get_lang_instruction(self, project_context: dict | None = None) -> str:
+        """Get language instruction to append to system prompt."""
+        lang = (project_context or {}).get("_output_language", "zh")
+        if lang == "en":
+            return "\n\nIMPORTANT: All output must be in English. Do not use Chinese."
+        return "\n\n重要：所有输出必须使用中文（简体）。不要使用英文，包括字段名、描述和分析内容。"
+
+    async def call_llm(self, user_message: str, max_tokens: int = 4096, project_context: dict | None = None) -> str:
         """Convenience: call the LLM with this agent's effective prompt."""
+        prompt = self.effective_prompt + self._get_lang_instruction(project_context)
         return await self.llm.generate(
-            system_prompt=self.effective_prompt,
+            system_prompt=prompt,
             user_message=user_message,
             max_tokens=max_tokens,
         )
 
-    async def call_llm_json(self, user_message: str, max_tokens: int = 4096) -> dict:
+    async def call_llm_json(self, user_message: str, max_tokens: int = 4096, project_context: dict | None = None) -> dict:
         """Convenience: call LLM and parse JSON response."""
+        prompt = self.effective_prompt + self._get_lang_instruction(project_context)
         raw = await self.llm.generate_structured(
-            system_prompt=self.effective_prompt,
+            system_prompt=prompt,
             user_message=user_message,
             max_tokens=max_tokens,
         )
