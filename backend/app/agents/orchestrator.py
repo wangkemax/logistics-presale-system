@@ -342,7 +342,12 @@ class PipelineOrchestrator:
         )
         stage = result.scalar_one_or_none()
         if stage:
-            stage.status = "completed" if status == "success" else "failed"
+            if status in ("success", "completed"):
+                stage.status = "completed"
+            elif status == "failed" or status == "error":
+                stage.status = "failed"
+            else:
+                stage.status = status
             stage.output_data = output_data
             stage.confidence = confidence
             stage.execution_time_seconds = execution_time

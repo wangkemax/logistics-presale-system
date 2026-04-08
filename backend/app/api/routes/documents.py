@@ -99,10 +99,15 @@ async def generate_document(
     await db.flush()
 
     # Return file directly
+    # Use RFC 5987 encoding for non-ASCII filenames
+    from urllib.parse import quote
+    encoded_filename = quote(filename)
     return StreamingResponse(
         io.BytesIO(file_bytes),
         media_type=content_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+        },
     )
 
 
