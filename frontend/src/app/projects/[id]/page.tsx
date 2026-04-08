@@ -83,43 +83,34 @@ export default function ProjectDetailPage() {
     if (!project) return;
     const isRunning = project.status === "in_progress" || stages.some(s => s.status === "running");
     if (!isRunning) return;
-    const timer = setInterval(pollProject, 5000);
+    const timer = setInterval(() => loadProject(true), 5000);
     return () => clearInterval(timer);
   }, [project?.status, stages]);
 
-  async function loadProject() {
-    try {
-      const [p, s, q] = await Promise.all([
-        api.get(id), api.getStages(id), api.getQAIssues(id),
-      ]);
-      setProject(p);
-      setStages(s);
-      setQaIssues(q);
-    } catch { router.push("/"); }
-  }
+  const statusRank: Record<string, number> = { pending: 0, running: 1, completed: 2, failed: 2 };
 
-  // Smart poll: only update stages that actually changed, never regress status
-  async function pollProject() {
+  async function loadProject(isPoll = false) {
     try {
       const [p, s, q] = await Promise.all([
         api.get(id), api.getStages(id), api.getQAIssues(id),
       ]);
       setProject(p);
-      // Merge stages: never regress from completed/running back to pending
+      // Always use smart merge — never regress stage status
       setStages(prev => {
+        if (prev.length === 0) return s; // First load, just set
         return s.map(newStage => {
           const old = prev.find(o => o.stage_number === newStage.stage_number);
           if (!old) return newStage;
-          // Don't regress: if old is completed/running and new is pending, keep old
-          const statusRank: Record<string, number> = { pending: 0, running: 1, completed: 2, failed: 2 };
           const oldRank = statusRank[old.status] ?? 0;
           const newRank = statusRank[newStage.status] ?? 0;
-          if (newRank < oldRank) return old;
+          if (newRank < oldRank) return old; // Don't regress
           return newStage;
         });
       });
       setQaIssues(q);
-    } catch {}
+    } catch {
+      if (!isPoll) router.push("/");
+    }
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
