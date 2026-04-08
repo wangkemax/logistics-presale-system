@@ -92,9 +92,10 @@ class TenderWriterAgent(BaseAgent):
 要求：
 1. 使用专业中文（简体），商务正式语气
 2. 内容详实，引用具体数据和指标
-3. 每个章节 500-800 字
-4. 结构清晰，使用小标题分段
-5. 仅输出章节正文内容，不要 JSON 格式，不要章节标题"""
+3. 每个章节至少 800 字，力争 1000-1500 字
+4. 结构清晰，使用小标题（如 一、二、三）分段
+5. 每段至少 3-4 句话，展开论述
+6. 仅输出章节正文内容，不要 JSON 格式，不要章节编号和标题"""
 
     async def _execute(self, input_data: dict, project_context: dict) -> dict:
         all_outputs = input_data.get("all_stage_outputs", {})
@@ -187,11 +188,13 @@ class TenderWriterAgent(BaseAgent):
 ## 相关分析数据
 {data_str}
 
-请撰写 600-1000 字的完整章节内容。使用小标题分段，引用具体数据。
+请撰写至少 800 字、力争 1200 字的完整章节内容。
+使用小标题（一、二、三...）分段，每段至少 3-4 句话展开论述。
+引用具体数据和指标，使内容充实有说服力。
 直接输出正文，不需要输出章节标题。"""
 
         # Use the base class LLM call (not JSON mode)
-        return await self.call_llm(prompt, max_tokens=3000)
+        return await self.call_llm(prompt, max_tokens=4096)
 
     async def _write_executive_summary(
         self, parts: list[str], context_str: str
@@ -213,7 +216,7 @@ class TenderWriterAgent(BaseAgent):
 - 表达合作诚意
 直接输出摘要正文。"""
 
-        return await self.call_llm(prompt, max_tokens=1500)
+        return await self.call_llm(prompt, max_tokens=2000)
 
     def _build_data_map(self, all_outputs: dict) -> dict:
         """Extract and organize key data from all stage outputs."""
