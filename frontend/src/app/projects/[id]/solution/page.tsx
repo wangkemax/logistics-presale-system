@@ -364,8 +364,8 @@ export default function SolutionWorkbenchPage() {
                   <p className="text-xs text-gray-500 mt-1">班次模式</p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-lg text-center">
-                  <p className="text-lg font-semibold text-gray-900">{getField(performance, "avg_lead_time_hours", "平均交货时间") ? `${getField(performance, "avg_lead_time_hours", "平均交货时间")}h` : "—"}</p>
-                  <p className="text-xs text-gray-500 mt-1">平均交货时间</p>
+                  <p className="text-lg font-semibold text-gray-900">{getField(performance, "daily_throughput", "日处理能力", "日吞吐量") || "—"}</p>
+                  <p className="text-xs text-gray-500 mt-1">日处理能力</p>
                 </div>
               </div>
 
