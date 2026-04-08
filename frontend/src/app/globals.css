@@ -2,51 +2,187 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design System Tokens (see DESIGN.md §2) ─── */
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
+  --bg-hover: #f1f5f9;
   --text-primary: #0f172a;
   --text-secondary: #64748b;
+  --text-muted: #94a3b8;
   --border: #e2e8f0;
+  --border-subtle: #f1f5f9;
   --brand: #4f46e5;
+  --brand-hover: #4338ca;
+  --brand-light: #eef2ff;
+  --success: #15803d;
+  --success-bg: #dcfce7;
+  --error: #b91c1c;
+  --error-bg: #fee2e2;
+  --running: #1d4ed8;
+  --running-bg: #dbeafe;
+  --warning-bg: #ffedd5;
 }
 
+/* ─── Base Typography (see DESIGN.md §3) ─── */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
   background: var(--bg-secondary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Pipeline stage indicators */
-.stage-pending { @apply bg-gray-100 text-gray-600; }
-.stage-running { @apply bg-blue-100 text-blue-700 animate-pulse; }
-.stage-completed { @apply bg-green-100 text-green-700; }
-.stage-failed { @apply bg-red-100 text-red-700; }
-
-/* Severity badges */
-.severity-p0 { @apply bg-red-100 text-red-800 font-semibold; }
-.severity-p1 { @apply bg-orange-100 text-orange-800; }
-.severity-p2 { @apply bg-yellow-100 text-yellow-800; }
-
-/* Mobile responsive utilities */
-@media (max-width: 768px) {
-  .grid-cols-3 { grid-template-columns: 1fr !important; }
-  .grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
-  .grid-cols-5 { grid-template-columns: repeat(2, 1fr) !important; }
-  .grid-cols-6 { grid-template-columns: repeat(2, 1fr) !important; }
-  .col-span-2 { grid-column: span 1 !important; }
+/* ─── Pipeline Stage Indicators (see DESIGN.md §2 Pipeline Status) ─── */
+.stage-pending {
+  @apply bg-gray-100 text-gray-600;
+}
+.stage-running {
+  @apply bg-blue-100 text-blue-700;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.stage-completed {
+  @apply bg-green-100 text-green-700;
+}
+.stage-failed {
+  @apply bg-red-100 text-red-700;
 }
 
-/* Hide sidebar on mobile */
+/* ─── Severity Badges (see DESIGN.md §2 Severity) ─── */
+.severity-p0 {
+  @apply bg-red-100 text-red-800 font-semibold;
+}
+.severity-p1 {
+  @apply bg-orange-100 text-orange-800;
+}
+.severity-p2 {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+/* ─── Card System (see DESIGN.md §4 Cards) ─── */
+.card {
+  @apply bg-white rounded-xl border border-gray-200;
+}
+.card-padded {
+  @apply card p-6;
+}
+.card-interactive {
+  @apply card transition-shadow;
+}
+.card-interactive:hover {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Button Variants (see DESIGN.md §4 Buttons) ─── */
+.btn-primary {
+  @apply px-4 py-2 text-sm font-medium text-white rounded-lg transition;
+  background: var(--brand);
+}
+.btn-primary:hover {
+  background: var(--brand-hover);
+}
+.btn-primary:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 text-sm font-medium border rounded-lg transition;
+}
+.btn-secondary:hover {
+  @apply bg-gray-50;
+}
+
+.btn-ghost {
+  @apply px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition;
+}
+
+/* ─── KPI Values (see DESIGN.md §3 KPI Value) ─── */
+.kpi-value {
+  @apply text-2xl font-bold;
+  line-height: 1.2;
+}
+.kpi-label {
+  @apply text-xs text-gray-500 mt-1;
+}
+
+/* ─── Tab Bar (see DESIGN.md §4 Tabs) ─── */
+.tab-active {
+  @apply bg-indigo-600 text-white;
+}
+.tab-inactive {
+  @apply text-gray-600 hover:bg-gray-50;
+}
+
+/* ─── Responsive: Mobile (see DESIGN.md §8) ─── */
 @media (max-width: 640px) {
-  aside { display: none !important; }
+  /* Sidebar hidden — handled by AppShell component */
+
+  /* Grid collapse */
+  .grid-cols-3,
+  .grid-cols-4,
+  .grid-cols-5 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Action buttons scroll horizontally */
+  .action-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
-/* Touch-friendly buttons */
+/* ─── Touch Targets (see DESIGN.md §8 Touch Targets) ─── */
 @media (hover: none) {
-  button, a {
+  button,
+  [role="button"],
+  a[href] {
     min-height: 44px;
-    min-width: 44px;
   }
+}
+
+/* ─── Animations ─── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ─── Scrollbar (subtle) ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ─── Selection ─── */
+::selection {
+  background: var(--brand-light);
+  color: var(--text-primary);
+}
+
+/* ─── Print ─── */
+@media print {
+  aside, .toast, .action-bar { display: none !important; }
+  body { background: white; }
+  .card { border: 1px solid #ddd; box-shadow: none; }
 }
