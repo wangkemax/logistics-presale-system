@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#4f46e5"/>
+  <text x="256" y="200" text-anchor="middle" font-family="Arial,sans-serif" font-size="120" font-weight="700" fill="white">售前</text>
+  <text x="256" y="340" text-anchor="middle" font-family="Arial,sans-serif" font-size="100" font-weight="700" fill="rgba(255,255,255,0.9)">AI</text>
+  <rect x="100" y="380" width="312" height="4" rx="2" fill="rgba(255,255,255,0.4)"/>
+  <circle cx="160" cy="420" r="16" fill="#22c55e"/>
+  <circle cx="220" cy="420" r="16" fill="#3b82f6"/>
+  <circle cx="280" cy="420" r="16" fill="#f59e0b"/>
+  <circle cx="340" cy="420" r="16" fill="#8b5cf6"/>
+</svg>
