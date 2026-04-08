@@ -133,9 +133,79 @@ export default function QuotationWorkbenchPage() {
   const [params, setParams] = useState<CostParams>(DEFAULT_PARAMS);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [dataSource, setDataSource] = useState<"default" | "pipeline">("default");
+
+  // Helper: get field with multiple key fallbacks
+  const g = (obj: any, ...keys: string[]) => {
+    if (!obj || typeof obj !== "object") return undefined;
+    for (const k of keys) {
+      if (obj[k] !== undefined) return obj[k];
+    }
+    return undefined;
+  };
 
   useEffect(() => {
-    pApi.get(id).then(setProject).catch(() => {});
+    Promise.all([pApi.get(id), pApi.getStages(id)]).then(([p, stages]) => {
+      setProject(p);
+
+      // Extract data from Stage 5 (Solution) and Stage 8 (Cost Model)
+      const s5 = stages.find(s => s.stage_number === 5 && s.status === "completed");
+      const s8 = stages.find(s => s.stage_number === 8 && s.status === "completed");
+
+      if (!s5?.output_data && !s8?.output_data) return;
+
+      const d5 = s5?.output_data || {};
+      const d8 = s8?.output_data || {};
+
+      const warehouse = g(d5, "warehouse_design", "仓库设计") || {};
+      const staffing = g(d5, "staffing", "人员配置") || {};
+      const costBreakdown = g(d8, "cost_breakdown", "成本分解") || {};
+      const pricing = g(d8, "pricing", "定价模型", "报价") || {};
+      const fi = g(d8, "financial_indicators", "财务指标") || {};
+
+      // Extract area
+      const area = Number(g(warehouse, "total_area_sqm", "总面积平方米", "总面积") || 0);
+      // Extract headcount
+      const hc = Number(g(staffing, "total_headcount", "总人数") || 0);
+      // Extract labor cost to calculate avg salary
+      const laborCost = g(costBreakdown, "labor_cost", "人力成本") || {};
+      const laborY1 = Number(g(laborCost, "year1", "第一年") || 0);
+      const avgSal = hc > 0 && laborY1 > 0 ? Math.round(laborY1 / hc / 13) : 0;
+      // Extract rent from cost breakdown
+      const rentCost = g(costBreakdown, "rent_cost", "场地成本", "租金") || {};
+      const rentY1 = Number(g(rentCost, "year1", "第一年") || 0);
+      const monthRent = area > 0 && rentY1 > 0 ? Math.round(rentY1 / area / 12) : 0;
+      // Extract automation investment
+      const equipCost = g(costBreakdown, "equipment_cost", "设备成本") || {};
+      const autoInvest = Number(g(equipCost, "year1", "第一年", "total", "总额") || g(d8, "total_automation_investment", "总自动化投资") || 0);
+      // Extract WMS/IT cost
+      const techCost = g(costBreakdown, "technology_cost", "技术成本", "IT成本") || {};
+      const wmsCostVal = Number(g(techCost, "year1", "第一年") || 0);
+      // Extract margin
+      const marginVal = Number(g(pricing, "target_margin_pct", "目标利润率") || 0);
+      // Extract daily order volume from performance
+      const perf = g(d5, "performance", "绩效指标") || {};
+      const dailyVol = Number(g(perf, "daily_throughput", "日处理能力", "日吞吐量") || 0);
+
+      // Build params from pipeline data, falling back to defaults
+      const pipelineParams: CostParams = {
+        warehouseArea: area || DEFAULT_PARAMS.warehouseArea,
+        monthlyRent: monthRent || DEFAULT_PARAMS.monthlyRent,
+        headcount: hc || DEFAULT_PARAMS.headcount,
+        avgSalary: avgSal || DEFAULT_PARAMS.avgSalary,
+        orderVolume: dailyVol || DEFAULT_PARAMS.orderVolume,
+        automationInvestment: autoInvest || DEFAULT_PARAMS.automationInvestment,
+        wmsCost: wmsCostVal || DEFAULT_PARAMS.wmsCost,
+        consumablesPerOrder: DEFAULT_PARAMS.consumablesPerOrder,
+        marginPct: marginVal > 1 ? marginVal : marginVal > 0 ? marginVal * 100 : DEFAULT_PARAMS.marginPct,
+        contractYears: DEFAULT_PARAMS.contractYears,
+        discountRate: DEFAULT_PARAMS.discountRate,
+        annualGrowth: DEFAULT_PARAMS.annualGrowth,
+      };
+
+      setParams(pipelineParams);
+      setDataSource("pipeline");
+    }).catch(() => {});
   }, [id]);
 
   const fin = useMemo(() => computeFinancials(params), [params]);
@@ -181,7 +251,12 @@ export default function QuotationWorkbenchPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">报价计算工作台</h1>
-            <p className="text-sm text-gray-500">{project?.name || ""} · 拖动参数实时联动</p>
+            <p className="text-sm text-gray-500">
+              {project?.name || ""} · 拖动参数实时联动
+              {dataSource === "pipeline" && (
+                <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">已从 Pipeline 加载</span>
+              )}
+            </p>
           </div>
           <button onClick={handleSaveQuotation} disabled={saving}
             className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50">
