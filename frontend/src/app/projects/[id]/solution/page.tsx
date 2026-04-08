@@ -130,9 +130,10 @@ export default function SolutionWorkbenchPage() {
 
             <div className="grid grid-cols-4 gap-4">
               {[
-                { label: "仓库面积", value: (warehouse.total_area_sqm || warehouse.总面积平米 || warehouse.面积) ? `${Number(warehouse.total_area_sqm || warehouse.总面积平米 || warehouse.面积).toLocaleString()} ㎡` : "—", icon: "📐" },
-                { label: "人员编制", value: staffing.total_headcount || staffing.总人数 || staffing.人数 || "—", icon: "👥" },
-                { label: "日吞吐量", value: (performance.daily_throughput || performance.日吞吐量) ? `${Number(performance.daily_throughput || performance.日吞吐量).toLocaleString()} 单` : "—", icon: "📦" },
+                { label: "仓库面积", value: warehouseArea ? `${Number(warehouseArea).toLocaleString()} ㎡` : "—", icon: "📐" },
+                { label: "人员编制", value: totalHeadcount || "—", icon: "👥" },
+                { label: "日吞吐量", value: dailyThroughput ? `${Number(dailyThroughput).toLocaleString()}` : "—", icon: "📦" },
+                { label: "准确率目标", value: accuracyTarget || "—", icon: "🎯" },
                 { label: "准确率目标", value: performance.accuracy_target || performance.准确率目标 || performance.准确率 || "—", icon: "🎯" },
               ].map(kpi => (
                 <div key={kpi.label} className="bg-white rounded-xl border border-gray-200 p-5">
