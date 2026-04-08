@@ -126,9 +126,14 @@ class LLMClient:
                     last_error = f"API error {result['status_code']}: {result['error_text']}"
 
             except Exception as e:
-                logger.error("llm_call_error", error=str(e), attempt=attempt + 1)
-                last_error = str(e)
-                await asyncio.sleep(5 * (attempt + 1))
+                error_msg = str(e)
+                logger.error("llm_call_error", error=error_msg, attempt=attempt + 1)
+                last_error = error_msg
+                # Server disconnect = wait longer before retry
+                if "disconnected" in error_msg.lower() or "RemoteProtocolError" in error_msg:
+                    await asyncio.sleep(15 * (attempt + 1))
+                else:
+                    await asyncio.sleep(5 * (attempt + 1))
 
         raise RuntimeError(f"LLM call failed after 3 attempts: {last_error}")
 

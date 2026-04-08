@@ -177,32 +177,18 @@ class TenderWriterAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return """你是一位服务于世界500强客户（如Porsche、Bosch、BMW等）的资深物流投标文件撰写专家。
-你撰写的投标文件以数据驱动、结构清晰、专业可信著称。你的标书帮助LSP赢得了多个年合同金额过千万的仓储项目。
+        return """你是资深物流投标文件撰写专家，服务Porsche/Bosch/BMW等500强客户。
 
-## 写作风格要求
+写作规则：
+1. 数据驱动：引用分析数据中的实际数值，不编造
+2. 每个子章节至少一个Markdown表格
+3. 计算透明：展示推导（如人力=490托÷18托/人=27人）
+4. 中英双语标题："中文 (English)"
+5. 专业术语：Milk Run/Kitting/FMEA/AGV/WCS/SAP EWM
+6. 需补充信息标注[请填写]
+7. 每章至少1个差异化亮点
 
-1. **数据驱动**：每个论点都用具体数字支撑。引用分析数据中的实际数值，如面积、吞吐量、人员编制、投资金额。数字必须来源于输入数据，不能凭空编造
-2. **表格密集**：每个子章节至少包含一个Markdown表格。表格是投标文件的核心信息载体
-3. **计算透明**：展示推导过程。例如：
-   - 人力需求 = 日均出库量490托 ÷ 人均效率18托/班 = 27人 → 含轮班系数1.15 ≈ 31人
-   - 仓库面积 = RDC区3,500㎡ + 暂存500㎡ + 温控1,200㎡ + 通道1,000㎡ = ~6,200㎡
-4. **中英双语标题**：章节和子章节标题使用"中文 (English)"格式
-5. **专业术语**：正确使用物流行业术语（VDA标签、Milk Run、Kitting、FMEA、8D、PSS、PEQ、SFM、CTU、AGV、WCS、SAP EWM）
-6. **留白标注**：需要投标方补充的信息标注[请填写]，如公司名称、仓库地址、租赁方信息
-7. **差异化亮点**：每章至少提出1个差异化优势（绿色物流、数字孪生、零买断风险、自有车队等）
-8. **组织架构图**：用文字树形结构（如├──、│、└──）展示组织和流程层级
-9. **风险意识**：关键假设标注"如实际偏差>20%则需重新报价"
-10. **5年视角**：人力规划、成本模型、效率提升都要展示5年趋势
-
-## 格式规范
-
-- 使用Markdown格式（标题、表格、列表、粗体）
-- 表格使用 | 列1 | 列2 | 列3 | 格式，表头下方用 |------|------|------| 分隔
-- 每章至少1500字，核心章节（第2章仓库运营设计）至少3000字
-- 不要输出JSON，直接输出Markdown正文
-- 不要重复章节编号和标题（调用方会添加）
-- 子章节使用 ### 格式"""
+格式：Markdown正文，不要JSON，不要重复章节标题。"""
 
     async def _execute(self, input_data: dict, project_context: dict) -> dict:
         all_outputs = input_data.get("all_stage_outputs", {})
@@ -264,7 +250,8 @@ class TenderWriterAgent(BaseAgent):
             if key in data_map:
                 relevant_data[key] = data_map[key]
 
-        data_str = json.dumps(relevant_data, ensure_ascii=False, default=str)[:6000] if relevant_data else "暂无具体数据，请基于行业最佳实践撰写，关键数据标注[待确认]"
+        # Keep data compact to avoid server disconnect on long requests
+        data_str = json.dumps(relevant_data, ensure_ascii=False, default=str)[:3000] if relevant_data else "暂无具体数据，请基于行业最佳实践撰写，关键数据标注[待确认]"
 
         prompt = ch_def["prompt_template"].format(
             data=data_str,
@@ -273,9 +260,9 @@ class TenderWriterAgent(BaseAgent):
         )
 
         prompt += f"\n\n## 项目背景\n{context_str}"
-        prompt += f"\n\n请直接输出本章Markdown正文内容（至少1500字，核心章节3000字）。"
+        prompt += f"\n\n请直接输出本章Markdown正文内容（800-1200字）。"
 
-        return await self.call_llm(prompt, max_tokens=4096, project_context=project_context)
+        return await self.call_llm(prompt, max_tokens=2500, project_context=project_context)
 
     async def _write_executive_summary(
         self, parts: list[str], context_str: str, project_context: dict | None = None,
@@ -298,7 +285,7 @@ class TenderWriterAgent(BaseAgent):
 - 包含至少3个关键数据指标（面积、人员、投资等）
 直接输出摘要正文。"""
 
-        return await self.call_llm(prompt, max_tokens=2000, project_context=project_context)
+        return await self.call_llm(prompt, max_tokens=1000, project_context=project_context)
 
     def _build_data_map(self, all_outputs: dict) -> dict:
         """Extract and organize key data from all stage outputs."""
