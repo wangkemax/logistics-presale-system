@@ -82,9 +82,9 @@ export default function SolutionWorkbenchPage() {
     return undefined;
   };
 
-  const warehouseArea = getField(warehouse, "total_area_sqm", "总面积平米", "总面积", "面积", "area");
+  const warehouseArea = getField(warehouse, "total_area_sqm", "总面积平方米", "总面积平米", "总面积", "面积", "area");
   const totalHeadcount = getField(staffing, "total_headcount", "总人数", "人数", "headcount");
-  const dailyThroughput = getField(performance, "daily_throughput", "日吞吐量", "吞吐量", "throughput");
+  const dailyThroughput = getField(performance, "daily_throughput", "日吞吐量", "日处理能力", "吞吐量", "throughput");
   const accuracyTarget = getField(performance, "accuracy_target", "准确率目标", "准确率", "accuracy");
 
   const VIEWS = [
@@ -180,71 +180,96 @@ export default function SolutionWorkbenchPage() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">总面积</p>
-                  <p className="text-2xl font-bold text-gray-900">{warehouse.total_area_sqm?.toLocaleString() || "—"} ㎡</p>
+                  <p className="text-2xl font-bold text-gray-900">{warehouseArea ? Number(warehouseArea).toLocaleString() : "—"} ㎡</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">流程设计</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{warehouse.flow_design || "未设计"}</p>
+                  <p className="text-sm text-gray-500 mb-1">动线设计</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{getField(warehouse, "flow_design", "动线设计", "物流动线") || "未设计"}</p>
                 </div>
               </div>
             </div>
 
-            {warehouse.zones && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-4">功能分区</h2>
-                <div className="grid grid-cols-3 gap-3">
-                  {(Array.isArray(warehouse.zones) ? warehouse.zones : []).map((zone: any, i: number) => (
-                    <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{typeof zone === "string" ? zone : zone.name || zone.zone || `Zone ${i+1}`}</p>
-                      {typeof zone === "object" && zone.area_sqm && (
-                        <p className="text-xs text-gray-500 mt-1">{zone.area_sqm} ㎡</p>
-                      )}
-                    </div>
-                  ))}
+            {(() => {
+              const zones = getField(warehouse, "zones", "功能分区", "分区");
+              if (!zones) return null;
+              const zoneArr = Array.isArray(zones) ? zones : [];
+              return (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="text-base font-semibold text-gray-900 mb-4">功能分区</h2>
+                  <div className="grid grid-cols-3 gap-3">
+                    {zoneArr.map((zone: any, i: number) => (
+                      <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                        <p className="text-sm font-medium text-gray-900">{zone.name || zone.名称 || zone.zone || `Zone ${i+1}`}</p>
+                        {(zone.area_sqm || zone.面积平方米 || zone.面积) && (
+                          <p className="text-xs text-gray-500 mt-1">{zone.area_sqm || zone.面积平方米 || zone.面积} ㎡</p>
+                        )}
+                        {(zone.description || zone.描述) && (
+                          <p className="text-xs text-gray-400 mt-1">{zone.description || zone.描述}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {warehouse.storage_systems && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-4">存储系统</h2>
-                <div className="space-y-3">
-                  {(Array.isArray(warehouse.storage_systems) ? warehouse.storage_systems : []).map((sys: any, i: number) => (
-                    <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                      <div className="flex items-start gap-3">
-                        <span className="text-lg mt-0.5">🗄️</span>
-                        <div className="flex-1">
-                          {typeof sys === "string" ? (
-                            <p className="text-sm text-gray-700">{sys}</p>
-                          ) : (
-                            <>
-                              <p className="text-sm font-medium text-gray-900 mb-1">{sys.type || sys.name || `System ${i+1}`}</p>
-                              <ObjectCard data={sys} />
-                            </>
-                          )}
+            {(() => {
+              const systems = getField(warehouse, "storage_systems", "存储系统", "货架系统");
+              if (!systems) return null;
+              const sysArr = Array.isArray(systems) ? systems : [];
+              return (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="text-base font-semibold text-gray-900 mb-4">存储系统</h2>
+                  <div className="space-y-3">
+                    {sysArr.map((sys: any, i: number) => (
+                      <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                        <div className="flex items-start gap-3">
+                          <span className="text-lg mt-0.5">🗄️</span>
+                          <div className="flex-1">
+                            {typeof sys === "string" ? (
+                              <p className="text-sm text-gray-700">{sys}</p>
+                            ) : (
+                              <>
+                                <p className="text-sm font-medium text-gray-900 mb-1">{sys.type || sys.类型 || sys.name || sys.名称 || `System ${i+1}`}</p>
+                                <ObjectCard data={sys} />
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
         {/* Operations */}
         {activeView === "operations" && (
           <div className="space-y-6">
-            {["inbound", "storage", "picking", "packing_shipping", "returns"].map(key => {
-              const section = operations[key];
+            {[
+              { keys: ["inbound", "入库流程", "收货流程"], label: "入库流程", icon: "📥" },
+              { keys: ["storage", "存储策略", "库存管理"], label: "存储策略", icon: "🗃️" },
+              { keys: ["picking", "拣选方案", "拣选流程"], label: "拣选流程", icon: "🛒" },
+              { keys: ["packing_shipping", "包装发运", "发运流程"], label: "包装发运", icon: "📤" },
+              { keys: ["returns", "退货处理", "逆向物流"], label: "退货处理", icon: "↩️" },
+            ].map(({ keys, label, icon }) => {
+              const section = getField(operations, ...keys);
               if (!section) return null;
-              const labels: Record<string, string> = { inbound: "入库流程", storage: "存储策略", picking: "拣选流程", packing_shipping: "包装发运", returns: "退货处理" };
-              const icons: Record<string, string> = { inbound: "📥", storage: "🗃️", picking: "🛒", packing_shipping: "📤", returns: "↩️" };
               return (
-                <div key={key} className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h2 className="text-base font-semibold text-gray-900 mb-3">{icons[key]} {labels[key]}</h2>
+                <div key={label} className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="text-base font-semibold text-gray-900 mb-3">{icon} {label}</h2>
                   {typeof section === "string" ? (
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{section}</p>
+                  ) : Array.isArray(section) ? (
+                    <div className="space-y-2">
+                      {section.map((item: any, i: number) => (
+                        <div key={i} className="text-sm text-gray-700">
+                          {typeof item === "string" ? `• ${item}` : <ObjectCard data={item} />}
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       {Object.entries(section).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
@@ -264,50 +289,62 @@ export default function SolutionWorkbenchPage() {
         {/* Technology */}
         {activeView === "technology" && (
           <div className="space-y-6">
-            {technology.wms && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-3">WMS 系统</h2>
-                <div className="text-sm text-gray-700">
-                  {typeof technology.wms === "string" ? technology.wms : (
-                    <ObjectCard data={technology.wms} />
-                  )}
+            {(() => {
+              const wms = getField(technology, "wms", "仓储管理系统", "WMS", "系统");
+              if (!wms) return null;
+              return (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="text-base font-semibold text-gray-900 mb-3">WMS 系统</h2>
+                  <div className="text-sm text-gray-700">
+                    {typeof wms === "string" ? wms : <ObjectCard data={wms} />}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {technology.automation && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-3">自动化设备</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  {(Array.isArray(technology.automation) ? technology.automation : []).map((item: any, i: number) => (
-                    <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                      {typeof item === "string" ? (
-                        <p className="text-sm text-gray-700">{item}</p>
-                      ) : (
-                        <>
-                          <p className="text-sm font-medium text-gray-900 mb-1">{item.type || item.name || `Device ${i+1}`}</p>
-                          <ObjectCard data={item} />
-                        </>
-                      )}
-                    </div>
-                  ))}
+            {(() => {
+              const auto = getField(technology, "automation", "自动化设备", "设备", "硬件");
+              if (!auto) return null;
+              const autoArr = Array.isArray(auto) ? auto : [];
+              return (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="text-base font-semibold text-gray-900 mb-3">自动化设备</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {autoArr.map((item: any, i: number) => (
+                      <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                        {typeof item === "string" ? (
+                          <p className="text-sm text-gray-700">{item}</p>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium text-gray-900 mb-1">{item.type || item.类型 || item.name || item.名称 || `Device ${i+1}`}</p>
+                            <ObjectCard data={item} />
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {technology.integrations && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-3">系统集成</h2>
-                <div className="space-y-2">
-                  {(Array.isArray(technology.integrations) ? technology.integrations : []).map((item: any, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
-                      <span className="text-indigo-400">→</span>
-                      {typeof item === "string" ? item : renderValue(item)}
-                    </div>
-                  ))}
+            {(() => {
+              const integ = getField(technology, "integrations", "系统集成", "集成");
+              if (!integ) return null;
+              const integArr = Array.isArray(integ) ? integ : [];
+              return (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="text-base font-semibold text-gray-900 mb-3">系统集成</h2>
+                  <div className="space-y-2">
+                    {integArr.map((item: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
+                        <span className="text-indigo-400">→</span>
+                        {typeof item === "string" ? item : renderValue(item)}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -318,32 +355,37 @@ export default function SolutionWorkbenchPage() {
               <h2 className="text-base font-semibold text-gray-900 mb-4">人员配置</h2>
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="p-4 bg-indigo-50 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-indigo-700">{staffing.total_headcount || "—"}</p>
+                  <p className="text-3xl font-bold text-indigo-700">{totalHeadcount || "—"}</p>
                   <p className="text-xs text-indigo-500 mt-1">总人数</p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-lg text-center">
-                  <p className="text-lg font-semibold text-gray-900">{staffing.shift_model || "—"}</p>
+                  <p className="text-lg font-semibold text-gray-900">{getField(staffing, "shift_model", "班次模式", "排班") || "—"}</p>
                   <p className="text-xs text-gray-500 mt-1">班次模式</p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-lg text-center">
-                  <p className="text-lg font-semibold text-gray-900">{performance.avg_lead_time_hours ? `${performance.avg_lead_time_hours}h` : "—"}</p>
+                  <p className="text-lg font-semibold text-gray-900">{getField(performance, "avg_lead_time_hours", "平均交货时间") ? `${getField(performance, "avg_lead_time_hours", "平均交货时间")}h` : "—"}</p>
                   <p className="text-xs text-gray-500 mt-1">平均交货时间</p>
                 </div>
               </div>
 
-              {staffing.by_function && typeof staffing.by_function === "object" && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">按职能分配</h3>
-                  <div className="space-y-2">
-                    {Object.entries(staffing.by_function).map(([role, count]) => (
-                      <div key={role} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm text-gray-700">{role}</span>
-                        <span className="text-sm font-semibold text-gray-900">{String(count)} 人</span>
-                      </div>
-                    ))}
+              {(() => {
+                const byFunc = getField(staffing, "by_function", "按职能分配", "岗位分配", "人员分配");
+                if (!byFunc || typeof byFunc !== "object") return null;
+                const entries = Array.isArray(byFunc) ? [] : Object.entries(byFunc);
+                return (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">按职能分配</h3>
+                    <div className="space-y-2">
+                      {entries.map(([role, count]) => (
+                        <div key={role} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm text-gray-700">{role}</span>
+                          <span className="text-sm font-semibold text-gray-900">{String(count)} 人</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         )}
