@@ -80,7 +80,7 @@
 
 | 模块 | 任务 | 状态 | 说明 |
 |------|------|------|------|
-| **运维** | CI/CD Pipeline | 🔲 待做 | GitHub Actions → Docker → K8s |
+| **运维** | CI/CD Pipeline | ✅ 完成 | GitHub Actions → Docker → K8s |
 | | 监控告警 | ✅ 完成 | /metrics endpoint + MetricsMiddleware |
 | | 日志聚合 | ✅ 完成 | structlog JSON lines + request logging |
 | **安全** | 安全审计 | ✅ 完成 | Security headers + input sanitization + HSTS |
