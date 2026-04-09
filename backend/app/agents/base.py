@@ -210,10 +210,37 @@ class BaseAgent(ABC):
             provider=ctx.get("_llm_provider", ""),
             model=ctx.get("_llm_model", ""),
         )
-        # Strip any accidental markdown fences
+        # Strip any accidental markdown fences, think tags, or other wrappers
         cleaned = raw.strip()
+        # Remove <think>...</think> blocks (MiniMax/DeepSeek reasoning)
+        import re
+        cleaned = re.sub(r'<think>.*?</think>', '', cleaned, flags=re.DOTALL).strip()
+        # Remove markdown code fences
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[-1]
         if cleaned.endswith("```"):
             cleaned = cleaned.rsplit("```", 1)[0]
-        return json.loads(cleaned.strip())
+        cleaned = cleaned.strip()
+        # Try to find JSON object/array in the text
+        if not cleaned.startswith(("{", "[")):
+            # Look for first { or [
+            json_start = -1
+            for i, c in enumerate(cleaned):
+                if c in ('{', '['):
+                    json_start = i
+                    break
+            if json_start >= 0:
+                cleaned = cleaned[json_start:]
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Last resort: try to find JSON between first { and last }
+            brace_start = cleaned.find('{')
+            brace_end = cleaned.rfind('}')
+            if brace_start >= 0 and brace_end > brace_start:
+                try:
+                    return json.loads(cleaned[brace_start:brace_end + 1])
+                except json.JSONDecodeError:
+                    pass
+            logger.error("json_parse_failed", raw_preview=raw[:200])
+            raise
