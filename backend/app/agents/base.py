@@ -178,8 +178,14 @@ class BaseAgent(ABC):
         """Get language instruction to append to system prompt."""
         lang = (project_context or {}).get("_output_language", "zh")
         if lang == "en":
-            return "\n\nIMPORTANT: All output must be in English. Do not use Chinese."
-        return "\n\n重要：所有输出必须使用中文（简体）。不要使用英文，包括字段名、描述和分析内容。"
+            return "\n\nIMPORTANT: All output must be in English. Use English for JSON field names and all content."
+        return (
+            "\n\n重要：描述和分析内容使用中文（简体）。"
+            "但是JSON字段名（key）必须使用英文（如 warehouse_design, total_area_sqm, executive_summary, "
+            "staffing, total_headcount, financial_indicators, roi_percent, irr_percent, npv_at_8pct, "
+            "risk_matrix, overall_risk_level, automation_level, recommendations, cost_breakdown, pricing）。"
+            "只有value部分使用中文。"
+        )
 
     async def call_llm(self, user_message: str, max_tokens: int = 4096, project_context: dict | None = None) -> str:
         """Convenience: call the LLM with this agent's effective prompt."""
