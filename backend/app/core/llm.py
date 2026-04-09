@@ -56,7 +56,8 @@ PROVIDERS = {
     },
     "minimax": {
         "label": "MiniMax",
-        "api_url": "https://api.minimaxi.com/v1/chat/completions",
+        "api_url": "https://api.minimaxi.com/anthropic/v1/messages",
+        "api_format": "anthropic",
         "models": [
             {"id": "MiniMax-M2.5", "name": "MiniMax M2.5"},
             {"id": "MiniMax-M2.7", "name": "MiniMax M2.7"},
@@ -107,10 +108,16 @@ def get_available_providers() -> list[dict]:
 # ── API Call Functions ──
 
 def _call_anthropic(api_key: str, model: str, system_prompt: str,
-                    user_message: str, max_tokens: int, temperature: float) -> dict:
-    """Call Anthropic Claude API."""
+                    user_message: str, max_tokens: int, temperature: float,
+                    api_url: str = "https://api.anthropic.com/v1/messages") -> dict:
+    """Call Anthropic-compatible API (works for Anthropic, MiniMax)."""
+    # MiniMax temperature must be > 0 and <= 1.0
+    if temperature <= 0:
+        temperature = 0.1
+    if temperature > 1.0:
+        temperature = 1.0
     response = httpx.post(
-        "https://api.anthropic.com/v1/messages",
+        api_url,
         headers={
             "x-api-key": api_key,
             "content-type": "application/json",
@@ -188,7 +195,10 @@ def _call_api_sync(provider: str, api_key: str, model: str, system_prompt: str,
     """Route to the correct provider's API call function."""
     if provider == "anthropic":
         return _call_anthropic(api_key, model, system_prompt, user_message, max_tokens, temperature)
-    elif provider in ("openai", "deepseek", "minimax", "glm"):
+    elif provider == "minimax":
+        api_url = PROVIDERS["minimax"]["api_url"]
+        return _call_anthropic(api_key, model, system_prompt, user_message, max_tokens, temperature, api_url=api_url)
+    elif provider in ("openai", "deepseek", "glm"):
         api_url = PROVIDERS[provider]["api_url"]
         return _call_openai_compatible(api_url, api_key, model, system_prompt, user_message, max_tokens, temperature)
     elif provider == "gemini":
