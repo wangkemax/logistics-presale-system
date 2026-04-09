@@ -54,6 +54,25 @@ PROVIDERS = {
         ],
         "default_model": "gemini-2.5-flash",
     },
+    "minimax": {
+        "label": "MiniMax",
+        "api_url": "https://api.minimax.io/v1/chat/completions",
+        "models": [
+            {"id": "MiniMax-M2.5", "name": "MiniMax M2.5"},
+            {"id": "MiniMax-M2.7", "name": "MiniMax M2.7"},
+        ],
+        "default_model": "MiniMax-M2.5",
+    },
+    "glm": {
+        "label": "GLM (智谱)",
+        "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "models": [
+            {"id": "glm-4.7", "name": "GLM-4.7"},
+            {"id": "glm-4-plus", "name": "GLM-4 Plus"},
+            {"id": "glm-4-flash", "name": "GLM-4 Flash"},
+        ],
+        "default_model": "glm-4.7",
+    },
 }
 
 
@@ -64,6 +83,8 @@ def _get_api_key(provider: str) -> str:
         "openai": settings.openai_api_key,
         "deepseek": settings.deepseek_api_key,
         "gemini": settings.gemini_api_key,
+        "minimax": settings.minimax_api_key,
+        "glm": settings.glm_api_key,
     }
     return key_map.get(provider, "")
 
@@ -167,7 +188,7 @@ def _call_api_sync(provider: str, api_key: str, model: str, system_prompt: str,
     """Route to the correct provider's API call function."""
     if provider == "anthropic":
         return _call_anthropic(api_key, model, system_prompt, user_message, max_tokens, temperature)
-    elif provider in ("openai", "deepseek"):
+    elif provider in ("openai", "deepseek", "minimax", "glm"):
         api_url = PROVIDERS[provider]["api_url"]
         return _call_openai_compatible(api_url, api_key, model, system_prompt, user_message, max_tokens, temperature)
     elif provider == "gemini":

@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     deepseek_api_key: str = ""
     gemini_api_key: str = ""
+    minimax_api_key: str = ""
+    glm_api_key: str = ""
 
     llm_primary_model: str = "claude-sonnet-4-20250514"
     llm_fallback_model: str = "gpt-4o"
