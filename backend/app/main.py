@@ -88,6 +88,14 @@ app.include_router(approval_routes.router, prefix="/api/v1")
 app.include_router(analytics_routes.router, prefix="/api/v1")
 app.include_router(ws_router)
 
+
+# ── LLM Providers API ──
+@app.get("/api/v1/llm/providers")
+async def list_providers():
+    """List available LLM providers and their models."""
+    from app.core.llm import get_available_providers
+    return get_available_providers()
+
 # Prometheus metrics
 register_metrics_endpoint(app)
 

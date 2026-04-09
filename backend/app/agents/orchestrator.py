@@ -82,19 +82,24 @@ class PipelineOrchestrator:
         notify_callback=None,
         resume_from: int = 0,
         language: str = "",
+        provider: str = "",
+        model: str = "",
     ) -> dict:
         """Run all stages sequentially, respecting QA gates.
         
         Args:
-            resume_from: Stage number to resume from. Completed stages
-                         will have their outputs loaded from DB instead of re-running.
-            language: Output language ("zh" or "en"). Defaults to config.
+            resume_from: Stage number to resume from.
+            language: Output language ("zh" or "en").
+            provider: LLM provider ("anthropic", "openai", "deepseek", "gemini").
+            model: Specific model ID within the provider.
         """
         from app.core.config import get_settings
         lang = language or get_settings().default_language
 
         project_context = project.assumptions or {}
         project_context["_output_language"] = lang
+        project_context["_llm_provider"] = provider
+        project_context["_llm_model"] = model
         stage_outputs: dict[int, dict] = {}
 
         # Load completed stage outputs when resuming

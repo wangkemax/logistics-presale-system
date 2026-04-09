@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { projects as api, quotations as qApi, type Project, type Stage, type QAIssue, type Quotation } from "@/lib/api";
+import { projects as api, quotations as qApi, llmProviders, type Project, type Stage, type QAIssue, type Quotation } from "@/lib/api";
 import { useWebSocket } from "@/lib/useWebSocket";
 
 const STAGE_NAMES = [
@@ -314,6 +314,9 @@ export default function ProjectDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState(false);
   const [language, setLanguage] = useState<"zh" | "en">("zh");
+  const [provider, setProvider] = useState<string>("");
+  const [model, setModel] = useState<string>("");
+  const [providers, setProviders] = useState<any[]>([]);
   const [tab, setTab] = useState<"pipeline" | "quotation" | "qa" | "documents">("pipeline");
   const [toastMsg, setToastMsg] = useState("");
   const [generatingQuote, setGeneratingQuote] = useState(false);
@@ -365,7 +368,17 @@ export default function ProjectDetailPage() {
     setTimeout(() => setToastMsg(""), 4000);
   }
 
-  useEffect(() => { loadProject(); }, [id]);
+  useEffect(() => {
+    loadProject();
+    llmProviders.list().then(p => {
+      setProviders(p);
+      const defaultProvider = p.find((x: any) => x.available);
+      if (defaultProvider) {
+        setProvider(defaultProvider.id);
+        setModel(defaultProvider.default_model);
+      }
+    }).catch(() => {});
+  }, [id]);
 
   // Auto-poll when pipeline is running (recovers state after navigation)
   useEffect(() => {
@@ -417,7 +430,7 @@ export default function ProjectDetailPage() {
   async function handleRunPipeline() {
     setRunning(true);
     try {
-      await api.runPipeline(id, language);
+      await api.runPipeline(id, language, provider, model);
       showToast("AI 分析已启动，请等待实时更新...");
       setProject(prev => prev ? { ...prev, status: "in_progress" } : prev);
     } catch (err: any) { showToast("启动失败: " + err.message); }
@@ -565,6 +578,26 @@ export default function ProjectDetailPage() {
                 <option value="zh">中文输出</option>
                 <option value="en">English</option>
               </select>
+              <select value={provider} onChange={e => {
+                  setProvider(e.target.value);
+                  const p = providers.find((x: any) => x.id === e.target.value);
+                  if (p) setModel(p.default_model);
+                }}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none bg-white">
+                {providers.map((p: any) => (
+                  <option key={p.id} value={p.id} disabled={!p.available}>
+                    {p.label}{!p.available ? " (未配置)" : ""}
+                  </option>
+                ))}
+              </select>
+              {providers.find((p: any) => p.id === provider)?.models?.length > 1 && (
+                <select value={model} onChange={e => setModel(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none bg-white">
+                  {providers.find((p: any) => p.id === provider)?.models?.map((m: any) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
               <button onClick={handleRunPipeline} disabled={running || project.status === "in_progress"}
                 className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50">
                 {project.status === "in_progress" ? "运行中..." : "启动 AI 分析"}

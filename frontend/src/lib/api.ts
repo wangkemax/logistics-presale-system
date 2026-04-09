@@ -138,10 +138,14 @@ export const projects = {
     return res.json();
   },
 
-  runPipeline: (projectId: string, language: string = "zh") =>
-    request<{ message: string }>(`/api/v1/projects/${projectId}/run-pipeline?language=${language}`, {
+  runPipeline: (projectId: string, language: string = "zh", provider: string = "", model: string = "") => {
+    const params = new URLSearchParams({ language });
+    if (provider) params.set("provider", provider);
+    if (model) params.set("model", model);
+    return request<{ message: string }>(`/api/v1/projects/${projectId}/run-pipeline?${params}`, {
       method: "POST",
-    }),
+    });
+  },
 
   resumePipeline: (projectId: string) =>
     request<{ message: string; resume_from: number }>(`/api/v1/projects/${projectId}/resume-pipeline`, {
@@ -253,4 +257,23 @@ export const knowledge = {
       method: "POST",
       body: JSON.stringify({ entries }),
     }),
+};
+
+// ── LLM Providers ──
+
+export interface LLMModel {
+  id: string;
+  name: string;
+}
+
+export interface LLMProvider {
+  id: string;
+  label: string;
+  models: LLMModel[];
+  default_model: string;
+  available: boolean;
+}
+
+export const llmProviders = {
+  list: () => request<LLMProvider[]>("/api/v1/llm/providers"),
 };

@@ -1,13 +1,11 @@
-"""Unified LLM client using synchronous httpx in a thread pool.
+"""Multi-provider LLM client.
 
-The Anthropic async SDK and httpx AsyncClient both have connection
-issues in Docker containers with uvicorn. Using sync httpx.post()
-in asyncio.to_thread() is the most reliable approach — proven by
-manual testing in the container.
+Supports: Anthropic Claude, OpenAI GPT, DeepSeek, Google Gemini.
+Uses synchronous httpx in a thread pool for Docker reliability.
+Provider is selected per-request via the `provider` parameter.
 """
 
 import asyncio
-import json
 import structlog
 import httpx
 
@@ -16,59 +14,176 @@ from app.core.config import get_settings
 logger = structlog.get_logger()
 settings = get_settings()
 
-API_URL = "https://api.anthropic.com/v1/messages"
-API_VERSION = "2023-06-01"
+# ── Provider Configurations ──
+
+PROVIDERS = {
+    "anthropic": {
+        "label": "Claude (Anthropic)",
+        "api_url": "https://api.anthropic.com/v1/messages",
+        "models": [
+            {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4"},
+            {"id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5"},
+        ],
+        "default_model": "claude-sonnet-4-20250514",
+    },
+    "openai": {
+        "label": "GPT (OpenAI)",
+        "api_url": "https://api.openai.com/v1/chat/completions",
+        "models": [
+            {"id": "gpt-4o", "name": "GPT-4o"},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini"},
+            {"id": "o3-mini", "name": "o3-mini"},
+        ],
+        "default_model": "gpt-4o",
+    },
+    "deepseek": {
+        "label": "DeepSeek",
+        "api_url": "https://api.deepseek.com/v1/chat/completions",
+        "models": [
+            {"id": "deepseek-chat", "name": "DeepSeek V3"},
+            {"id": "deepseek-reasoner", "name": "DeepSeek R1"},
+        ],
+        "default_model": "deepseek-chat",
+    },
+    "gemini": {
+        "label": "Gemini (Google)",
+        "api_url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        "models": [
+            {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash"},
+            {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro"},
+        ],
+        "default_model": "gemini-2.5-flash",
+    },
+}
 
 
-def _call_api_sync(
-    api_key: str,
-    model: str,
-    system_prompt: str,
-    user_message: str,
-    max_tokens: int,
-    temperature: float,
-) -> dict:
-    """Synchronous API call — runs in thread pool via asyncio.to_thread()."""
-    headers = {
-        "x-api-key": api_key,
-        "content-type": "application/json",
-        "anthropic-version": API_VERSION,
+def _get_api_key(provider: str) -> str:
+    """Get API key for a provider from settings."""
+    key_map = {
+        "anthropic": settings.anthropic_api_key,
+        "openai": settings.openai_api_key,
+        "deepseek": settings.deepseek_api_key,
+        "gemini": settings.gemini_api_key,
     }
-    payload = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "system": system_prompt,
-        "messages": [{"role": "user", "content": user_message}],
-    }
+    return key_map.get(provider, "")
 
-    # Use a fresh client per call — avoids connection pool issues in Docker
+
+def get_available_providers() -> list[dict]:
+    """Return list of providers that have API keys configured."""
+    result = []
+    for pid, pconfig in PROVIDERS.items():
+        key = _get_api_key(pid)
+        result.append({
+            "id": pid,
+            "label": pconfig["label"],
+            "models": pconfig["models"],
+            "default_model": pconfig["default_model"],
+            "available": bool(key),
+        })
+    return result
+
+
+# ── API Call Functions ──
+
+def _call_anthropic(api_key: str, model: str, system_prompt: str,
+                    user_message: str, max_tokens: int, temperature: float) -> dict:
+    """Call Anthropic Claude API."""
     response = httpx.post(
-        API_URL,
-        headers=headers,
-        json=payload,
-        timeout=httpx.Timeout(
-            connect=30.0,
-            read=600.0,  # 10 min read timeout for long generations
-            write=30.0,
-            pool=30.0,
-        ),
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "content-type": "application/json",
+            "anthropic-version": "2023-06-01",
+        },
+        json={
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_message}],
+        },
+        timeout=httpx.Timeout(connect=30, read=600, write=30, pool=30),
     )
+    if response.status_code == 200:
+        data = response.json()
+        return {"text": data["content"][0]["text"], "usage": data.get("usage", {})}
+    return {"error": response.text[:500], "status": response.status_code,
+            "retry_after": int(response.headers.get("retry-after", 30)) if response.status_code == 429 else 0}
 
-    return {
-        "status_code": response.status_code,
-        "body": response.json() if response.status_code == 200 else None,
-        "error_text": response.text[:500] if response.status_code != 200 else None,
-        "retry_after": int(response.headers.get("retry-after", 30)) if response.status_code == 429 else 0,
-    }
 
+def _call_openai_compatible(api_url: str, api_key: str, model: str, system_prompt: str,
+                            user_message: str, max_tokens: int, temperature: float) -> dict:
+    """Call OpenAI-compatible API (works for OpenAI, DeepSeek)."""
+    response = httpx.post(
+        api_url,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        },
+        timeout=httpx.Timeout(connect=30, read=600, write=30, pool=30),
+    )
+    if response.status_code == 200:
+        data = response.json()
+        return {"text": data["choices"][0]["message"]["content"], "usage": data.get("usage", {})}
+    return {"error": response.text[:500], "status": response.status_code,
+            "retry_after": int(response.headers.get("retry-after", 30)) if response.status_code == 429 else 0}
+
+
+def _call_gemini(api_key: str, model: str, system_prompt: str,
+                 user_message: str, max_tokens: int, temperature: float) -> dict:
+    """Call Google Gemini API."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    response = httpx.post(
+        url,
+        headers={"Content-Type": "application/json"},
+        json={
+            "system_instruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"parts": [{"text": user_message}]}],
+            "generationConfig": {
+                "maxOutputTokens": max_tokens,
+                "temperature": temperature,
+            },
+        },
+        timeout=httpx.Timeout(connect=30, read=600, write=30, pool=30),
+    )
+    if response.status_code == 200:
+        data = response.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return {"text": text, "usage": data.get("usageMetadata", {})}
+    return {"error": response.text[:500], "status": response.status_code, "retry_after": 0}
+
+
+def _call_api_sync(provider: str, api_key: str, model: str, system_prompt: str,
+                   user_message: str, max_tokens: int, temperature: float) -> dict:
+    """Route to the correct provider's API call function."""
+    if provider == "anthropic":
+        return _call_anthropic(api_key, model, system_prompt, user_message, max_tokens, temperature)
+    elif provider in ("openai", "deepseek"):
+        api_url = PROVIDERS[provider]["api_url"]
+        return _call_openai_compatible(api_url, api_key, model, system_prompt, user_message, max_tokens, temperature)
+    elif provider == "gemini":
+        return _call_gemini(api_key, model, system_prompt, user_message, max_tokens, temperature)
+    else:
+        return {"error": f"Unknown provider: {provider}", "status": 400, "retry_after": 0}
+
+
+# ── Main LLM Client ──
 
 class LLMClient:
-    """LLM client using sync httpx in thread pool for maximum reliability."""
+    """Multi-provider LLM client."""
 
     def __init__(self):
-        self.api_key = settings.anthropic_api_key
-        self.primary_model = settings.llm_primary_model
+        self.default_provider = "anthropic"
+        self.default_model = settings.llm_primary_model
 
     async def generate(
         self,
@@ -76,61 +191,60 @@ class LLMClient:
         user_message: str,
         max_tokens: int = 4096,
         temperature: float = 0.3,
+        provider: str = "",
+        model: str = "",
     ) -> str:
-        """Generate a completion using Claude API."""
+        """Generate a completion using the specified provider and model."""
+        use_provider = provider or self.default_provider
+        use_model = model or (PROVIDERS.get(use_provider, {}).get("default_model", "") if provider else self.default_model)
+        api_key = _get_api_key(use_provider)
+
+        if not api_key:
+            raise RuntimeError(f"No API key configured for provider: {use_provider}")
+
         last_error = None
 
         for attempt in range(3):
             try:
-                # Run sync httpx in thread pool — proven reliable
                 result = await asyncio.to_thread(
                     _call_api_sync,
-                    self.api_key,
-                    self.primary_model,
-                    system_prompt,
-                    user_message,
-                    max_tokens,
-                    temperature,
+                    use_provider, api_key, use_model,
+                    system_prompt, user_message, max_tokens, temperature,
                 )
 
-                if result["status_code"] == 200:
-                    data = result["body"]
-                    text = data["content"][0]["text"]
+                if "text" in result:
                     logger.info(
                         "llm_success",
-                        model=self.primary_model,
-                        input_tokens=data.get("usage", {}).get("input_tokens"),
-                        output_tokens=data.get("usage", {}).get("output_tokens"),
+                        provider=use_provider,
+                        model=use_model,
+                        input_tokens=result.get("usage", {}).get("input_tokens")
+                            or result.get("usage", {}).get("prompt_tokens"),
+                        output_tokens=result.get("usage", {}).get("output_tokens")
+                            or result.get("usage", {}).get("completion_tokens"),
                         attempt=attempt + 1,
                     )
-                    return text
+                    return result["text"]
 
-                elif result["status_code"] == 429:
-                    wait = result["retry_after"]
-                    logger.warning("llm_rate_limited", retry_after=wait, attempt=attempt + 1)
+                # Error handling
+                status = result.get("status", 0)
+                if status == 429:
+                    wait = result.get("retry_after", 30)
+                    logger.warning("llm_rate_limited", provider=use_provider, retry_after=wait)
                     await asyncio.sleep(wait)
                     continue
-
-                elif result["status_code"] == 529:
-                    logger.warning("llm_overloaded", attempt=attempt + 1)
+                elif status == 529:
+                    logger.warning("llm_overloaded", provider=use_provider)
                     await asyncio.sleep(30)
                     continue
-
                 else:
-                    logger.error(
-                        "llm_api_error",
-                        status=result["status_code"],
-                        body=result["error_text"],
-                        attempt=attempt + 1,
-                    )
-                    last_error = f"API error {result['status_code']}: {result['error_text']}"
+                    last_error = f"[{use_provider}] API error {status}: {result.get('error', '')}"
+                    logger.error("llm_api_error", provider=use_provider, status=status, error=result.get("error"))
 
             except Exception as e:
                 error_msg = str(e)
-                logger.error("llm_call_error", error=error_msg, attempt=attempt + 1)
+                logger.error("llm_call_error", provider=use_provider, error=error_msg, attempt=attempt + 1)
                 last_error = error_msg
-                # Server disconnect = wait longer before retry
-                if "disconnected" in error_msg.lower() or "RemoteProtocolError" in error_msg:
+                if "disconnected" in error_msg.lower():
                     await asyncio.sleep(15 * (attempt + 1))
                 else:
                     await asyncio.sleep(5 * (attempt + 1))
@@ -142,8 +256,10 @@ class LLMClient:
         system_prompt: str,
         user_message: str,
         max_tokens: int = 4096,
+        provider: str = "",
+        model: str = "",
     ) -> str:
-        """Generate structured JSON output from LLM."""
+        """Generate structured JSON output."""
         structured_system = (
             f"{system_prompt}\n\n"
             "IMPORTANT: Respond ONLY with valid JSON. "
@@ -154,6 +270,8 @@ class LLMClient:
             user_message=user_message,
             max_tokens=max_tokens,
             temperature=0.1,
+            provider=provider,
+            model=model,
         )
 
 

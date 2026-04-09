@@ -190,19 +190,25 @@ class BaseAgent(ABC):
     async def call_llm(self, user_message: str, max_tokens: int = 4096, project_context: dict | None = None) -> str:
         """Convenience: call the LLM with this agent's effective prompt."""
         prompt = self.effective_prompt + self._get_lang_instruction(project_context)
+        ctx = project_context or {}
         return await self.llm.generate(
             system_prompt=prompt,
             user_message=user_message,
             max_tokens=max_tokens,
+            provider=ctx.get("_llm_provider", ""),
+            model=ctx.get("_llm_model", ""),
         )
 
     async def call_llm_json(self, user_message: str, max_tokens: int = 4096, project_context: dict | None = None) -> dict:
         """Convenience: call LLM and parse JSON response."""
         prompt = self.effective_prompt + self._get_lang_instruction(project_context)
+        ctx = project_context or {}
         raw = await self.llm.generate_structured(
             system_prompt=prompt,
             user_message=user_message,
             max_tokens=max_tokens,
+            provider=ctx.get("_llm_provider", ""),
+            model=ctx.get("_llm_model", ""),
         )
         # Strip any accidental markdown fences
         cleaned = raw.strip()

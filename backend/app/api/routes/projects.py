@@ -157,10 +157,15 @@ async def run_pipeline(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
     language: str = "",
+    provider: str = "",
+    model: str = "",
 ):
     """Start the full 12-stage pipeline for a project.
     
-    Query param `language`: 'zh' (default) or 'en' for output language.
+    Query params:
+      - language: 'zh' (default) or 'en' for output language
+      - provider: 'anthropic', 'openai', 'deepseek', 'gemini' (default: anthropic)
+      - model: specific model ID (default: provider's default)
     """
     project = await _get_project(project_id, db)
 
@@ -187,7 +192,7 @@ async def run_pipeline(
 
     # Run pipeline in background
     background_tasks.add_task(
-        _execute_pipeline_bg, project_id, doc_text, 0, language
+        _execute_pipeline_bg, project_id, doc_text, 0, language, provider, model
     )
 
     return {"message": "Pipeline started", "project_id": str(project_id)}
@@ -386,7 +391,8 @@ async def _get_project(project_id: UUID, db: AsyncSession) -> Project:
     return project
 
 
-async def _execute_pipeline_bg(project_id: UUID, doc_text: str, resume_from: int = 0, language: str = ""):
+async def _execute_pipeline_bg(project_id: UUID, doc_text: str, resume_from: int = 0,
+                               language: str = "", provider: str = "", model: str = ""):
     """Background task to execute the full pipeline (or resume from a stage)."""
     from app.core.database import AsyncSessionLocal
     from app.core.llm import get_llm_client
@@ -398,7 +404,8 @@ async def _execute_pipeline_bg(project_id: UUID, doc_text: str, resume_from: int
 
             orchestrator = PipelineOrchestrator(db, get_llm_client())
             await orchestrator.run_full_pipeline(
-                project, document_text=doc_text, resume_from=resume_from, language=language
+                project, document_text=doc_text, resume_from=resume_from,
+                language=language, provider=provider, model=model,
             )
 
             await db.commit()
