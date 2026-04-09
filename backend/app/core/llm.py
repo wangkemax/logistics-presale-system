@@ -56,7 +56,7 @@ PROVIDERS = {
     },
     "minimax": {
         "label": "MiniMax",
-        "api_url": "https://api.minimax.io/v1/chat/completions",
+        "api_url": "https://api.minimaxi.com/v1/chat/completions",
         "models": [
             {"id": "MiniMax-M2.5", "name": "MiniMax M2.5"},
             {"id": "MiniMax-M2.7", "name": "MiniMax M2.7"},
