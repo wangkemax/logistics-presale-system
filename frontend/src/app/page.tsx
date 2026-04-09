@@ -73,7 +73,7 @@ export default function DashboardPage() {
   };
 
   // Compute industries for filter dropdown
-  const industries = [...new Set(projectList.map(p => p.industry).filter(Boolean))];
+  const industries = Array.from(new Set(projectList.map(p => p.industry).filter(Boolean) as string[]));
 
   // Filter projects
   const filteredProjects = projectList.filter(p => {
