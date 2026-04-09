@@ -20,6 +20,9 @@ export default function DashboardPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ name: "", client_name: "", industry: "", description: "" });
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterIndustry, setFilterIndustry] = useState<string>("all");
 
   useEffect(() => {
     loadProjects();
@@ -69,6 +72,25 @@ export default function DashboardPage() {
     review: projectList.filter((p) => p.status === "review_needed").length,
   };
 
+  // Compute industries for filter dropdown
+  const industries = [...new Set(projectList.map(p => p.industry).filter(Boolean))];
+
+  // Filter projects
+  const filteredProjects = projectList.filter(p => {
+    if (filterStatus !== "all" && p.status !== filterStatus) return false;
+    if (filterIndustry !== "all" && p.industry !== filterIndustry) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.client_name || "").toLowerCase().includes(q) ||
+        (p.industry || "").toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -111,19 +133,46 @@ export default function DashboardPage() {
 
         {/* Project List */}
         <div className="bg-white rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-base font-medium text-gray-900">项目列表</h2>
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+            <h2 className="text-base font-medium text-gray-900 shrink-0">项目列表</h2>
+            <div className="flex items-center gap-3 flex-1 justify-end">
+              <input
+                type="text"
+                placeholder="搜索项目名/客户名..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg w-48 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              />
+              <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg outline-none">
+                <option value="all">全部行业</option>
+                {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+              </select>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg outline-none">
+                <option value="all">全部状态</option>
+                <option value="created">已创建</option>
+                <option value="in_progress">进行中</option>
+                <option value="completed">已完成</option>
+                <option value="review_needed">待审核</option>
+                <option value="failed">失败</option>
+              </select>
+              {(search || filterStatus !== "all" || filterIndustry !== "all") && (
+                <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterIndustry("all"); }}
+                  className="text-xs text-gray-400 hover:text-gray-600">清除筛选</button>
+              )}
+            </div>
           </div>
 
           {loading ? (
             <div className="px-6 py-12 text-center text-gray-400">加载中...</div>
-          ) : projectList.length === 0 ? (
+          ) : filteredProjects.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <p className="text-gray-400 mb-4">暂无项目，点击上方按钮创建第一个项目</p>
+              <p className="text-gray-400 mb-4">{projectList.length === 0 ? "暂无项目，点击上方按钮创建第一个项目" : "没有匹配的项目"}</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {projectList.map((project) => {
+              {filteredProjects.map((project) => {
                 const st = STATUS_MAP[project.status] || STATUS_MAP.created;
                 const completedStages = project.stages?.filter((s: any) => s.status === "completed").length || 0;
                 return (

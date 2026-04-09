@@ -86,14 +86,57 @@ async def generate_tender_docx(stage_outputs: dict, project_info: dict) -> bytes
         else:
             h_style.font.size = Pt(12)
 
+    # ── Page Header & Footer ──
+    header = section.header
+    header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+    header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    header_run = header_para.add_run(f"{project_info.get('name', '')} — 技术方案与商务报价")
+    header_run.font.size = Pt(8)
+    header_run.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+
+    footer = section.footer
+    footer_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_run = footer_para.add_run("机密文件 | [请填写公司名] | ")
+    footer_run.font.size = Pt(8)
+    footer_run.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+    # Add page number field
+    from docx.oxml import OxmlElement
+    fld = OxmlElement("w:fldSimple")
+    fld.set(qn("w:instr"), "PAGE")
+    footer_run2 = footer_para.add_run()
+    footer_run2.font.size = Pt(8)
+    footer_run2.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+    footer_run2._element.append(fld)
+
     # ── Cover Page ──
     _add_cover_page(doc, project_info)
 
-    # ── Table of Contents placeholder ──
+    # ── Table of Contents ──
     doc.add_page_break()
     doc.add_heading("目录", level=1)
-    p = doc.add_paragraph()
-    p.add_run("[请在 Word 中右键此处 → 更新域 以生成目录]").italic = True
+    # Insert real TOC field
+    toc_para = doc.add_paragraph()
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(qn("w:fldCharType"), "begin")
+    toc_instr = OxmlElement("w:instrText")
+    toc_instr.set(qn("xml:space"), "preserve")
+    toc_instr.text = ' TOC \\o "1-3" \\h \\z \\u '
+    fld_sep = OxmlElement("w:fldChar")
+    fld_sep.set(qn("w:fldCharType"), "separate")
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(qn("w:fldCharType"), "end")
+    run_toc = toc_para.add_run()
+    run_toc._element.append(fld_begin)
+    run_toc2 = toc_para.add_run()
+    run_toc2._element.append(toc_instr)
+    run_toc3 = toc_para.add_run()
+    run_toc3._element.append(fld_sep)
+    run_toc4 = toc_para.add_run("[打开Word后按 Ctrl+A → F9 更新目录]")
+    run_toc4.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+    run_toc4.font.size = Pt(9)
+    run_toc5 = toc_para.add_run()
+    run_toc5._element.append(fld_end)
 
     # ── Content Chapters ──
     requirements = stage_outputs.get(1, {})
@@ -189,28 +232,85 @@ def _add_cover_page(doc: Document, info: dict):
 
 
 def _add_markdown_content(doc: Document, text: str):
-    """Convert simple markdown-like text to Word paragraphs."""
-    for line in text.split("\n"):
-        stripped = line.strip()
+    """Convert markdown text to Word paragraphs, including tables."""
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+
         if not stripped:
+            i += 1
             continue
 
+        # Markdown table detection: line starts with | and next line has |---|
+        if stripped.startswith("|") and i + 1 < len(lines) and "---" in lines[i + 1]:
+            # Collect all table rows
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row_text = lines[i].strip()
+                if "---" not in row_text:  # Skip separator line
+                    cells = [c.strip() for c in row_text.split("|")[1:-1]]
+                    table_lines.append(cells)
+                i += 1
+
+            if table_lines:
+                num_cols = max(len(row) for row in table_lines)
+                table = doc.add_table(rows=len(table_lines), cols=num_cols)
+                table.style = "Table Grid"
+
+                for row_idx, row_data in enumerate(table_lines):
+                    for col_idx, cell_text in enumerate(row_data):
+                        if col_idx < num_cols:
+                            table.rows[row_idx].cells[col_idx].text = cell_text
+                            # Style header row
+                            if row_idx == 0:
+                                _set_cell_shading(table.rows[row_idx].cells[col_idx], "1F3864")
+                                for run in table.rows[row_idx].cells[col_idx].paragraphs[0].runs:
+                                    run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                                    run.font.bold = True
+                                    run.font.size = Pt(9)
+                            else:
+                                for run in table.rows[row_idx].cells[col_idx].paragraphs[0].runs:
+                                    run.font.size = Pt(9)
+
+                doc.add_paragraph()  # spacing after table
+            continue
+
+        # Headings
         if stripped.startswith("### "):
             doc.add_heading(stripped[4:], level=3)
         elif stripped.startswith("## "):
             doc.add_heading(stripped[3:], level=2)
         elif stripped.startswith("# "):
             doc.add_heading(stripped[2:], level=1)
+        # Lists
         elif stripped.startswith("- ") or stripped.startswith("* "):
-            p = doc.add_paragraph(stripped[2:], style="List Bullet")
-        elif stripped[0:3] in ("1. ", "2. ", "3. ", "4. ", "5. ", "6. ", "7. ", "8. ", "9. "):
-            p = doc.add_paragraph(stripped[3:], style="List Number")
+            doc.add_paragraph(stripped[2:], style="List Bullet")
+        elif len(stripped) > 3 and stripped[0].isdigit() and stripped[1:3] in (". ", ") "):
+            doc.add_paragraph(stripped[3:], style="List Number")
+        # Bold line
         elif stripped.startswith("**") and stripped.endswith("**"):
             p = doc.add_paragraph()
             run = p.add_run(stripped[2:-2])
             run.bold = True
+        # Normal paragraph with inline bold
         else:
-            doc.add_paragraph(stripped)
+            p = doc.add_paragraph()
+            _add_rich_text(p, stripped)
+
+        i += 1
+
+
+def _add_rich_text(paragraph, text: str):
+    """Add text to paragraph with inline **bold** support."""
+    import re
+    parts = re.split(r'(\*\*.*?\*\*)', text)
+    for part in parts:
+        if part.startswith("**") and part.endswith("**"):
+            run = paragraph.add_run(part[2:-2])
+            run.bold = True
+        else:
+            paragraph.add_run(part)
 
 
 def _build_chapter_1(doc, info):
