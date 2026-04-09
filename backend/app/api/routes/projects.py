@@ -269,6 +269,39 @@ async def resume_pipeline(
     }
 
 
+@router.delete("/{project_id}")
+async def delete_project(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Delete a project and all related data (stages, quotations, QA issues, documents)."""
+    from app.models.models import TenderDocument
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Delete related data
+    await db.execute(
+        QAIssue.__table__.delete().where(QAIssue.project_id == project_id)
+    )
+    await db.execute(
+        Quotation.__table__.delete().where(Quotation.project_id == project_id)
+    )
+    await db.execute(
+        ProjectStage.__table__.delete().where(ProjectStage.project_id == project_id)
+    )
+    await db.execute(
+        TenderDocument.__table__.delete().where(TenderDocument.project_id == project_id)
+    )
+    await db.delete(project)
+    await db.commit()
+
+    return {"message": f"Project '{project.name}' deleted"}
+
+
 # ── Stages ──
 
 @router.get("/{project_id}/stages", response_model=list[StageResponse])

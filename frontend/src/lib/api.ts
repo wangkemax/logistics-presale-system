@@ -148,6 +148,11 @@ export const projects = {
       method: "POST",
     }),
 
+  delete: (projectId: string) =>
+    request<{ message: string }>(`/api/v1/projects/${projectId}`, {
+      method: "DELETE",
+    }),
+
   getStages: (projectId: string) =>
     request<Stage[]>(`/api/v1/projects/${projectId}/stages`),
 

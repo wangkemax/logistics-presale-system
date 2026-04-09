@@ -17,6 +17,8 @@ export default function DashboardPage() {
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ name: "", client_name: "", industry: "", description: "" });
 
   useEffect(() => {
@@ -43,6 +45,20 @@ export default function DashboardPage() {
       loadProjects();
     } catch (e: any) {
       alert(e.message);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      await api.delete(deleteConfirm.id);
+      setDeleteConfirm(null);
+      loadProjects();
+    } catch (e: any) {
+      alert("删除失败: " + e.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -111,19 +127,15 @@ export default function DashboardPage() {
                 const st = STATUS_MAP[project.status] || STATUS_MAP.created;
                 const completedStages = project.stages?.filter((s: any) => s.status === "completed").length || 0;
                 return (
-                  <Link
-                    key={project.id}
-                    href={`/projects/${project.id}`}
-                    className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition"
-                  >
-                    <div className="flex-1 min-w-0">
+                  <div key={project.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition">
+                    <Link href={`/projects/${project.id}`} className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{project.name}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {project.client_name || "未指定客户"} · {project.industry || "未指定行业"}
                         {project.description && <span className="ml-2 text-gray-400">— {project.description.slice(0, 40)}</span>}
                       </p>
-                    </div>
-                    <div className="flex items-center gap-4 ml-4">
+                    </Link>
+                    <div className="flex items-center gap-3 ml-4">
                       {completedStages > 0 && (
                         <span className="text-xs text-gray-400">{completedStages}/12 阶段</span>
                       )}
@@ -131,8 +143,17 @@ export default function DashboardPage() {
                       <span className="text-xs text-gray-400">
                         {new Date(project.created_at).toLocaleDateString("zh-CN")}
                       </span>
+                      <button
+                        onClick={(e) => { e.preventDefault(); setDeleteConfirm(project); }}
+                        className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50 transition"
+                        title="删除项目"
+                      >
+                        🗑️
+                      </button>
                     </div>
-                  </Link>
+                  </div>
+                );
+              })}
                 );
               })}
             </div>
@@ -232,6 +253,36 @@ export default function DashboardPage() {
                 className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition"
               >
                 创建项目
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">确认删除</h3>
+            <p className="text-sm text-gray-600 mb-1">
+              确定要删除项目 <span className="font-medium text-gray-900">{deleteConfirm.name}</span> 吗？
+            </p>
+            <p className="text-xs text-red-500 mb-6">
+              此操作将删除该项目的所有数据（Pipeline 结果、报价、文档、QA 记录），且不可恢复。
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition"
+              >
+                {deleting ? "删除中..." : "确认删除"}
               </button>
             </div>
           </div>
