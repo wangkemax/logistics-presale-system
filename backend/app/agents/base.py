@@ -223,7 +223,6 @@ class BaseAgent(ABC):
         cleaned = cleaned.strip()
         # Try to find JSON object/array in the text
         if not cleaned.startswith(("{", "[")):
-            # Look for first { or [
             json_start = -1
             for i, c in enumerate(cleaned):
                 if c in ('{', '['):
@@ -231,16 +230,47 @@ class BaseAgent(ABC):
                     break
             if json_start >= 0:
                 cleaned = cleaned[json_start:]
+
+        def _try_parse(text: str):
+            return json.loads(text)
+
+        def _repair_json(text: str) -> str:
+            """Common LLM JSON mistakes: trailing commas, single quotes, unquoted keys."""
+            # Remove trailing commas before } or ]
+            text = re.sub(r',(\s*[}\]])', r'\1', text)
+            # Replace Python None/True/False with JSON null/true/false
+            text = re.sub(r'\bNone\b', 'null', text)
+            text = re.sub(r'\bTrue\b', 'true', text)
+            text = re.sub(r'\bFalse\b', 'false', text)
+            return text
+
+        # Attempt 1: parse as-is
         try:
-            return json.loads(cleaned)
+            return _try_parse(cleaned)
         except json.JSONDecodeError:
-            # Last resort: try to find JSON between first { and last }
-            brace_start = cleaned.find('{')
-            brace_end = cleaned.rfind('}')
-            if brace_start >= 0 and brace_end > brace_start:
-                try:
-                    return json.loads(cleaned[brace_start:brace_end + 1])
-                except json.JSONDecodeError:
-                    pass
-            logger.error("json_parse_failed", raw_preview=raw[:200])
-            raise
+            pass
+
+        # Attempt 2: extract between first { and last }
+        brace_start = cleaned.find('{')
+        brace_end = cleaned.rfind('}')
+        if brace_start >= 0 and brace_end > brace_start:
+            substr = cleaned[brace_start:brace_end + 1]
+            try:
+                return _try_parse(substr)
+            except json.JSONDecodeError:
+                pass
+            # Attempt 3: repair common JSON issues
+            try:
+                return _try_parse(_repair_json(substr))
+            except json.JSONDecodeError:
+                pass
+
+        # Attempt 4: try json5 if available (more lenient)
+        try:
+            import json5
+            return json5.loads(cleaned)
+        except (ImportError, Exception):
+            pass
+
+        logger.error("json_parse_failed", raw_preview=raw[:500])
+        raise json.JSONDecodeError(f"Failed to parse LLM response as JSON. Preview: {raw[:200]}", raw, 0)
