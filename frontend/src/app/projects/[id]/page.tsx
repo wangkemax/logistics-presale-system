@@ -68,6 +68,74 @@ function StageOutputView({ data, stageNumber }: { data: any; stageNumber: number
     );
   }
 
+  // Stage 4: Knowledge Base Retrieval
+  if (stageNumber === 4 && (data.retrieved_knowledge || data.knowledge_count)) {
+    const counts = data.knowledge_count || {};
+    const totalRetrieved = (counts.automation || 0) + (counts.cost_model || 0) + (counts.logistics || 0);
+    const rk = data.retrieved_knowledge || {};
+    const keyPoints = data.key_data_points || [];
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="text-2xl font-bold text-blue-700">{counts.automation || 0}</div>
+            <div className="text-xs text-blue-600">自动化案例</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="text-2xl font-bold text-green-700">{counts.cost_model || 0}</div>
+            <div className="text-xs text-green-600">成本模型</div>
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <div className="text-2xl font-bold text-orange-700">{counts.logistics || 0}</div>
+            <div className="text-xs text-orange-600">物流案例</div>
+          </div>
+        </div>
+        {totalRetrieved === 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+            ⚠️ 知识库为空。先到 <Link href="/knowledge" className="underline font-medium">知识库页面</Link> 上传历史案例，下次跑 Pipeline 才能引用真实数据。
+          </div>
+        )}
+        {keyPoints.length > 0 && (
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">📌 关键数据点 ({keyPoints.length})</p>
+            <div className="space-y-1">
+              {keyPoints.slice(0, 10).map((p: any, i: number) => (
+                <div key={i} className="text-sm py-2 px-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500">{p.type} · 来源: {p.source}</div>
+                  <div className="text-gray-900 mt-0.5">{p.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {data.synthesized_context && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <p className="text-sm font-medium text-indigo-800 mb-2">综合分析</p>
+            <p className="text-sm text-indigo-700 whitespace-pre-wrap leading-relaxed">{data.synthesized_context}</p>
+          </div>
+        )}
+        {(rk.automation_cases || rk.cost_benchmarks || rk.logistics_cases) && (
+          <details className="border border-gray-200 rounded-lg">
+            <summary className="px-4 py-3 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50">
+              查看详细检索内容
+            </summary>
+            <div className="p-4 space-y-3 text-sm text-gray-700">
+              {rk.automation_cases && (
+                <div><p className="font-medium text-gray-900 mb-1">自动化案例</p><div className="whitespace-pre-wrap">{rk.automation_cases}</div></div>
+              )}
+              {rk.cost_benchmarks && (
+                <div><p className="font-medium text-gray-900 mb-1">成本基准</p><div className="whitespace-pre-wrap">{rk.cost_benchmarks}</div></div>
+              )}
+              {rk.logistics_cases && (
+                <div><p className="font-medium text-gray-900 mb-1">物流案例</p><div className="whitespace-pre-wrap">{rk.logistics_cases}</div></div>
+              )}
+            </div>
+          </details>
+        )}
+      </div>
+    );
+  }
+
   // Stage 10: Tender chapters (S10 uses English keys from tender_writer)
   if (stageNumber === 10 && data.document_structure) {
     return (

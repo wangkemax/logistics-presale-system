@@ -205,7 +205,7 @@ class PipelineOrchestrator:
                 "requirements": stage_outputs.get(1, {}),
                 "solution_design": stage_outputs.get(5, {}),
                 "automation_recommendations": stage_outputs.get(6, {}),
-                "cost_references": stage_outputs.get(4, {}).get("retrieved_knowledge", {}).get("cost_references", ""),
+                "cost_references": stage_outputs.get(4, {}).get("retrieved_knowledge", {}).get("cost_benchmarks", ""),
             }
             s8_result = await self._run_stage(8, s8_input, project_context, project_id=project.id)
             stage_outputs[8] = s8_result.data
