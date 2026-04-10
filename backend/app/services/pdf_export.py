@@ -76,7 +76,7 @@ async def generate_pdf_from_html(html_content: str, title: str = "Document") -> 
             fontSize=28, leading=36,
             alignment=TA_CENTER,
             textColor=colors.HexColor("#1F3864"),
-            fontName="Helvetica-Bold",
+            fontName=chinese_font_bold,
             spaceAfter=20,
         ))
         styles.add(ParagraphStyle(
@@ -84,7 +84,7 @@ async def generate_pdf_from_html(html_content: str, title: str = "Document") -> 
             fontSize=14, leading=20,
             alignment=TA_CENTER,
             textColor=colors.HexColor("#64748B"),
-            fontName="Helvetica",
+            fontName=chinese_font,
         ))
 
         elements = []
