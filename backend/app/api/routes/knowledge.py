@@ -318,17 +318,34 @@ async def upload_roi_excel(
         npv = row.get(col_npv) if col_npv else None
         payback = row.get(col_pay) if col_pay else None
 
+        def _num(v):
+            try:
+                return float(v) if not pd.isna(v) else None
+            except (ValueError, TypeError):
+                return None
+
+        investment_n = _num(investment)
+        running_n = _num(running)
+        savings_n = _num(savings)
+        irr_n = _num(irr)
+        npv_n = _num(npv)
+        payback_n = _num(payback)
+        qty_n = _num(qty)
+
+        if investment_n is None:
+            continue
+
         lines = [
             f"客户：{client_name}" if client_name else "",
             f"项目：{project_name}" if project_name else "",
             f"设备：{eq_label}",
-            f"数量：{qty} 台" if not pd.isna(qty) else "",
-            f"一次性投资：¥{investment:,.0f}",
-            f"年运行成本：¥{running:,.0f}" if not pd.isna(running) else "",
-            f"年节省：¥{savings:,.0f}" if not pd.isna(savings) else "",
-            f"IRR（内部收益率）：{irr*100:.1f}%" if not pd.isna(irr) else "",
-            f"NPV（净现值）：¥{npv:,.0f}" if not pd.isna(npv) else "",
-            f"投资回报周期：{payback:.1f} 个月" if not pd.isna(payback) else "",
+            f"数量：{qty_n} 台" if qty_n is not None else "",
+            f"一次性投资：¥{investment_n:,.0f}",
+            f"年运行成本:¥{running_n:,.0f}" if running_n is not None else "",
+            f"年节省：¥{savings_n:,.0f}" if savings_n is not None else "",
+            f"IRR（内部收益率）：{irr_n*100:.1f}%" if irr_n is not None else "",
+            f"NPV（净现值）：¥{npv_n:,.0f}" if npv_n is not None else "",
+            f"投资回报周期：{payback_n:.1f} 个月" if payback_n is not None else "",
         ]
         content = "\n".join(l for l in lines if l)
 
@@ -336,9 +353,9 @@ async def upload_roi_excel(
             "客户": client_name,
             "项目": project_name,
             "设备类型": str(eq_label),
-            "投资金额": float(investment),
-            "IRR": float(irr) if not pd.isna(irr) else None,
-            "回本月数": float(payback) if not pd.isna(payback) else None,
+            "投资金额": investment_n,
+            "IRR": irr_n,
+            "回本月数": payback_n,
         }
 
         tags = ["自动化", "ROI"]
