@@ -49,6 +49,63 @@ async def create_project(
     return project
 
 
+@router.post("/{project_id}/clone", response_model=ProjectResponse, status_code=201)
+async def clone_project(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Clone a project with all its stages, but reset status to pending.
+    
+    The new project copies: name (with '副本' suffix), description, client,
+    industry, and the tender file reference. Stages are re-initialized
+    fresh so the pipeline can be re-run."""
+    source = await _get_project(project_id, db)
+    
+    new_project = Project(
+        name=f"{source.name} (副本)",
+        description=source.description,
+        client_name=source.client_name,
+        industry=source.industry,
+        tender_file_url=source.tender_file_url,
+        created_by=user["user_id"],
+        status="created",
+    )
+    db.add(new_project)
+    await db.flush()
+    
+    # Initialize fresh pipeline stages
+    orchestrator = PipelineOrchestrator(db, get_llm_client())
+    await orchestrator.initialize_project(new_project)
+    
+    # If the source has a Stage 1 with uploaded text, copy it so the new
+    # project doesn't need to re-upload
+    from app.models.models import ProjectStage
+    src_stage1 = await db.execute(
+        select(ProjectStage).where(
+            ProjectStage.project_id == source.id,
+            ProjectStage.stage_number == 0,
+        )
+    )
+    src_s1 = src_stage1.scalar_one_or_none()
+    if src_s1 and src_s1.output_data:
+        # Copy stage 0 (file upload) data to new project
+        new_stage1 = await db.execute(
+            select(ProjectStage).where(
+                ProjectStage.project_id == new_project.id,
+                ProjectStage.stage_number == 0,
+            )
+        )
+        new_s1 = new_stage1.scalar_one_or_none()
+        if new_s1:
+            new_s1.output_data = src_s1.output_data
+            new_s1.status = "completed"
+    
+    await db.commit()
+    await db.refresh(new_project)
+    return new_project
+
+
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(
     db: AsyncSession = Depends(get_db),

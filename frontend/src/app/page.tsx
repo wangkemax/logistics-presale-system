@@ -193,6 +193,22 @@ export default function DashboardPage() {
                         {new Date(project.created_at).toLocaleDateString("zh-CN")}
                       </span>
                       <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const cloned = await api.clone(project.id);
+                            await loadProjects();
+                            alert(`已创建副本：${cloned.name}`);
+                          } catch (err: any) {
+                            alert("复制失败: " + err.message);
+                          }
+                        }}
+                        className="text-xs text-gray-400 hover:text-blue-500 px-2 py-1 rounded hover:bg-blue-50 transition"
+                        title="复制项目"
+                      >
+                        📋
+                      </button>
+                      <button
                         onClick={(e) => { e.preventDefault(); setDeleteConfirm(project); }}
                         className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50 transition"
                         title="删除项目"

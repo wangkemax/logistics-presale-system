@@ -768,6 +768,24 @@ export default function ProjectDetailPage() {
                       <span>{STAGE_ICONS[selected.stage_number]}</span>
                       Stage {selected.stage_number}: {STAGE_NAMES[selected.stage_number]}
                     </h3>
+                    {selected.stage_number > 0 && selected.status !== "running" && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`确定重跑 Stage ${selected.stage_number} (${STAGE_NAMES[selected.stage_number]}) 吗？\n\n这将覆盖当前输出数据。`)) return;
+                          try {
+                            await api.runStage(id, selected.stage_number);
+                            await loadProject();
+                            alert(`Stage ${selected.stage_number} 重跑已开始`);
+                          } catch (e: any) {
+                            alert("重跑失败: " + e.message);
+                          }
+                        }}
+                        className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200"
+                        title="单独重跑此 Stage"
+                      >
+                        🔄 重跑此 Stage
+                      </button>
+                    )}
                   </div>
                   {selected.qa_result && (
                     <div className={`mb-4 px-3 py-2 rounded-lg text-sm ${

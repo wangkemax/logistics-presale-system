@@ -161,6 +161,20 @@ export const projects = {
       method: "DELETE",
     }),
 
+  clone: (projectId: string) =>
+    request<Project>(`/api/v1/projects/${projectId}/clone`, {
+      method: "POST",
+    }),
+
+  runStage: (projectId: string, stageNumber: number) =>
+    request<{ stage_number: number; status: string }>(
+      `/api/v1/projects/${projectId}/run-stage`,
+      {
+        method: "POST",
+        body: JSON.stringify({ stage_number: stageNumber, override_input: {} }),
+      }
+    ),
+
   getStages: (projectId: string) =>
     request<Stage[]>(`/api/v1/projects/${projectId}/stages`),
 
