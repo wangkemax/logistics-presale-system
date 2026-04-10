@@ -440,10 +440,31 @@ export default function ProjectDetailPage() {
     loadProject();
     llmProviders.list().then(p => {
       setProviders(p);
-      const defaultProvider = p.find((x: any) => x.available);
-      if (defaultProvider) {
-        setProvider(defaultProvider.id);
-        setModel(defaultProvider.default_model);
+      // Try to load saved default from settings
+      let savedProvider = "";
+      let savedModel = "";
+      try {
+        const saved = localStorage.getItem("default_llm");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          savedProvider = parsed.provider || "";
+          savedModel = parsed.model || "";
+        }
+      } catch {}
+      // Verify saved provider is still available
+      const savedProviderObj = p.find((x: any) => x.id === savedProvider && x.available);
+      if (savedProviderObj) {
+        setProvider(savedProvider);
+        // Verify saved model exists in this provider
+        const modelExists = savedProviderObj.models.some((m: any) => m.id === savedModel);
+        setModel(modelExists ? savedModel : savedProviderObj.default_model);
+      } else {
+        // Fallback to first available provider
+        const defaultProvider = p.find((x: any) => x.available);
+        if (defaultProvider) {
+          setProvider(defaultProvider.id);
+          setModel(defaultProvider.default_model);
+        }
       }
     }).catch(() => {});
   }, [id]);
