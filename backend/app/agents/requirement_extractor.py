@@ -55,6 +55,21 @@ class RequirementExtractorAgent(BaseAgent):
                 "_confidence": 0.0,
             }
 
+        # Auto-detect document language if user didn't explicitly choose
+        # Count Chinese characters in first 5000 chars
+        sample = document_text[:5000]
+        chinese_chars = sum(1 for c in sample if '\u4e00' <= c <= '\u9fff')
+        ascii_chars = sum(1 for c in sample if c.isascii() and c.isalpha())
+        total = chinese_chars + ascii_chars
+        if total > 100:
+            detected_lang = "zh" if chinese_chars / total > 0.3 else "en"
+            project_context["_detected_language"] = detected_lang
+            # If user didn't specify language, use detected
+            if not project_context.get("_output_language") or project_context.get("_output_language") == "zh":
+                if detected_lang == "en":
+                    # Document is English, but user wants Chinese — keep their choice
+                    pass
+
         # Identify if Excel/CSV data is present
         has_data_files = "=== SHEET:" in document_text or "=== CSV DATA" in document_text or "=== FILE:" in document_text
 

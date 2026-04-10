@@ -179,6 +179,15 @@ class BaseAgent(ABC):
         lang = (project_context or {}).get("_output_language", "zh")
         if lang == "en":
             return "\n\nIMPORTANT: All output must be in English. Use English for JSON field names and all content."
+        elif lang == "bilingual":
+            return (
+                "\n\nIMPORTANT: Provide bilingual output (Chinese + English) for all descriptive content. "
+                "JSON keys MUST be in English (e.g. warehouse_design, total_area_sqm, executive_summary). "
+                "For string values, format as '中文描述 / English description'. "
+                "For example: {\"executive_summary\": \"本方案为... / This solution provides...\", "
+                "\"flow_design\": \"动线优化 / Flow optimization\"}. "
+                "Numeric values, arrays of numbers, and IDs do NOT need translation."
+            )
         return (
             "\n\n重要：描述和分析内容使用中文（简体）。"
             "但是JSON字段名（key）必须使用英文（如 warehouse_design, total_area_sqm, executive_summary, "
