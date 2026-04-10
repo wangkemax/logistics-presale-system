@@ -23,8 +23,16 @@ router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 COLLECTION_NAME = "logistics_knowledge"
 
 # Directory for storing original uploaded knowledge source files
-KNOWLEDGE_FILES_DIR = Path("/app/uploads/knowledge")
-KNOWLEDGE_FILES_DIR.mkdir(parents=True, exist_ok=True)
+KNOWLEDGE_FILES_DIR = Path(os.getenv("KNOWLEDGE_FILES_DIR", "/app/uploads/knowledge"))
+try:
+    KNOWLEDGE_FILES_DIR.mkdir(parents=True, exist_ok=True)
+except (PermissionError, OSError):
+    # In CI/test environments without write access, fall back to /tmp
+    KNOWLEDGE_FILES_DIR = Path("/tmp/knowledge_uploads")
+    try:
+        KNOWLEDGE_FILES_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 
 def _save_uploaded_file(file_bytes: bytes, original_filename: str) -> tuple[str, str]:
