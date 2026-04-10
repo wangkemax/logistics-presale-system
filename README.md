@@ -88,8 +88,14 @@ docker compose exec backend python -m app.scripts.seed_knowledge
 
 ## Documentation
 
+- [API.md](API.md) — 📘 **完整 REST API 文档**（60+ endpoints）
+- [DESIGN.md](DESIGN.md) — 系统架构与设计决策
 - [ROADMAP.md](ROADMAP.md) — 完整路线图与里程碑
 - [PROGRESS.md](PROGRESS.md) — 当前进度、文件清单、API 端点总览
+
+**交互式 API 文档** (启动后端后访问):
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ## Development
 
