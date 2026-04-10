@@ -182,17 +182,17 @@ export default function KnowledgePage() {
             <h1 className="text-lg font-semibold text-gray-900">知识库</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowCaseUpload(true)}
-              className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700">
-              📄 上传物流案例
+            <button onClick={() => setShowUpload(true)}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+              📊 上传 ROI Excel
             </button>
             <button onClick={() => setShowCostUpload(true)}
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
               💰 上传 Cost Model
             </button>
-            <button onClick={() => setShowUpload(true)}
-              className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
-              📊 上传 ROI Excel
+            <button onClick={() => setShowCaseUpload(true)}
+              className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700">
+              📄 上传物流案例
             </button>
             <button onClick={() => setShowAdd(true)}
               className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
