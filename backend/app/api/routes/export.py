@@ -149,6 +149,131 @@ async def export_project(
     )
 
 
+@router.get("/export-bundle")
+async def export_bundle(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Export all deliverables as a single ZIP file: Word + Excel + PDF + JSON.
+    
+    Bundles:
+    - {project_name}_标书.docx (tender Word document)
+    - {project_name}_报价单.xlsx (quotation Excel)
+    - {project_name}_完整方案.pdf (full proposal PDF)
+    - {project_name}_data.json (raw stage outputs for backup)
+    """
+    import zipfile
+    from app.services.tender_docx import generate_tender_docx
+    from app.services.quotation_excel import generate_quotation_excel
+    from app.services.pdf_export import generate_pdf_from_stages
+    
+    # Load project with all relations
+    result = await db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .options(
+            selectinload(Project.stages),
+            selectinload(Project.quotations),
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Build stage outputs dict
+    stage_outputs = {s.stage_number: (s.output_data or {}) for s in project.stages}
+    project_info = {
+        "name": project.name,
+        "client_name": project.client_name,
+        "industry": project.industry,
+        "description": project.description,
+    }
+    
+    # Generate all 3 artifacts (catch errors per file so partial success works)
+    files: dict[str, bytes] = {}
+    errors: list[str] = []
+    
+    try:
+        docx_bytes = await generate_tender_docx(stage_outputs, project_info)
+        files[f"{project.name}_标书.docx"] = docx_bytes
+    except Exception as e:
+        errors.append(f"Word generation failed: {e}")
+    
+    try:
+        # Quotation excel needs the latest quotation data
+        quotation = project.quotations[-1] if project.quotations else None
+        if quotation:
+            quote_data = {
+                "project_name": project.name,
+                "client_name": project.client_name,
+                "scheme_name": quotation.scheme_name,
+                "cost_breakdown": quotation.cost_breakdown or {},
+                "total_cost": float(quotation.total_cost or 0),
+                "total_price": float(quotation.total_price or 0),
+                "margin_rate": float(quotation.margin_rate or 0),
+                "roi": float(quotation.roi or 0),
+                "irr": float(quotation.irr or 0),
+                "npv": float(quotation.npv or 0),
+                "payback_months": float(quotation.payback_months or 0),
+            }
+            xlsx_bytes = await generate_quotation_excel(quote_data)
+            files[f"{project.name}_报价单.xlsx"] = xlsx_bytes
+        else:
+            errors.append("No quotation data — Excel skipped")
+    except Exception as e:
+        errors.append(f"Excel generation failed: {e}")
+    
+    try:
+        pdf_bytes = await generate_pdf_from_stages(stage_outputs, project_info)
+        files[f"{project.name}_完整方案.pdf"] = pdf_bytes
+    except Exception as e:
+        errors.append(f"PDF generation failed: {e}")
+    
+    # Always include raw data JSON
+    raw_data = {
+        "project": project_info,
+        "stages": [
+            {
+                "number": s.stage_number,
+                "name": s.stage_name,
+                "status": s.status,
+                "output": s.output_data,
+                "qa_result": s.qa_result,
+            }
+            for s in sorted(project.stages, key=lambda x: x.stage_number)
+        ],
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+    }
+    files[f"{project.name}_data.json"] = json.dumps(
+        raw_data, ensure_ascii=False, indent=2, default=str
+    ).encode("utf-8")
+    
+    if errors:
+        files["_errors.txt"] = ("\n".join(errors)).encode("utf-8")
+    
+    # Build ZIP
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname, fbytes in files.items():
+            zf.writestr(fname, fbytes)
+    
+    zip_buffer.seek(0)
+    
+    # RFC 5987 UTF-8 filename encoding for Chinese names
+    from urllib.parse import quote
+    filename = f"{project.name}_完整交付包_{datetime.now().strftime('%Y%m%d')}.zip"
+    encoded_filename = quote(filename)
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+        },
+    )
+
+
 @router.post("/archive")
 async def archive_project(
     project_id: UUID,

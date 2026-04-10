@@ -870,6 +870,46 @@ export default function ProjectDetailPage() {
 
         {/* ═══ Documents Tab ═══ */}
         {tab === "documents" && (
+          <div>
+            {/* Bundle download CTA */}
+            <div className="mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-1">📦 一键打包全部交付物</h3>
+                  <p className="text-sm text-indigo-100">下载 Word 标书 + Excel 报价单 + PDF 方案 + 原始数据 JSON 的 ZIP 包，直接交付客户</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      setGeneratingDoc("bundle");
+                      const token = localStorage.getItem("token");
+                      const res = await fetch(
+                        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/projects/${id}/export-bundle`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                      );
+                      if (!res.ok) throw new Error("打包失败");
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${project?.name || "project"}_完整交付包.zip`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      showToast("打包下载完成");
+                    } catch (e: any) {
+                      alert("打包失败: " + e.message);
+                    } finally {
+                      setGeneratingDoc(null);
+                    }
+                  }}
+                  disabled={generatingDoc !== null || completedStages < 10}
+                  className="px-6 py-3 bg-white text-indigo-600 rounded-lg font-semibold hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {generatingDoc === "bundle" ? "打包中..." : completedStages < 10 ? "需完成 10+ 阶段" : "📥 下载 ZIP"}
+                </button>
+              </div>
+            </div>
+
           <div className="grid grid-cols-2 gap-6">
             {[
               { type: "tender", icon: "📄", title: "投标文档 (Word)", desc: "10 章节专业标书，含公司介绍、方案设计、成本报价等", ext: ".docx" },
@@ -888,6 +928,7 @@ export default function ProjectDetailPage() {
                 </button>
               </div>
             ))}
+          </div>
           </div>
         )}
 
