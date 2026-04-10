@@ -224,12 +224,10 @@ class BaseAgent(ABC):
         # Remove <think>...</think> blocks (MiniMax/DeepSeek reasoning)
         import re
         cleaned = re.sub(r'<think>.*?</think>', '', cleaned, flags=re.DOTALL).strip()
-        # Remove markdown code fences
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[-1]
-        if cleaned.endswith("```"):
-            cleaned = cleaned.rsplit("```", 1)[0]
-        cleaned = cleaned.strip()
+        # Extract content from markdown code blocks: ```json ... ``` or ``` ... ```
+        fence_match = re.search(r'```(?:json|JSON)?\s*\n?(.*?)\n?\s*```', cleaned, re.DOTALL)
+        if fence_match:
+            cleaned = fence_match.group(1).strip()
         # Try to find JSON object/array in the text
         if not cleaned.startswith(("{", "[")):
             json_start = -1
