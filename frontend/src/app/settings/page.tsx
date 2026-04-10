@@ -1,14 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { llmProviders, type LLMProvider } from "@/lib/api";
 
 export default function SettingsPage() {
+  const [providers, setProviders] = useState<LLMProvider[]>([]);
   const [config, setConfig] = useState({
+    llm_provider: "anthropic",
     llm_model: "claude-sonnet-4-20250514",
     agent_timeout: 10,
     max_retries: 2,
     cache_ttl: 24,
   });
+
+  useEffect(() => {
+    llmProviders.list().then(data => {
+      setProviders(data);
+      // Initialize from saved settings or first available provider
+      const saved = typeof window !== "undefined" ? localStorage.getItem("default_llm") : null;
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setConfig(c => ({ ...c, llm_provider: parsed.provider, llm_model: parsed.model }));
+        } catch {}
+      } else {
+        const first = data.find(p => p.available);
+        if (first) {
+          setConfig(c => ({ ...c, llm_provider: first.id, llm_model: first.default_model }));
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
+  const currentProvider = providers.find(p => p.id === config.llm_provider);
+
+  function handleSave() {
+    localStorage.setItem("default_llm", JSON.stringify({
+      provider: config.llm_provider,
+      model: config.llm_model,
+    }));
+    alert("设置已保存。新建项目时会默认使用此 Provider/模型。");
+  }
 
   return (
     <div className="min-h-screen">
@@ -23,12 +55,36 @@ export default function SettingsPage() {
           <h2 className="text-sm font-semibold text-gray-900 mb-4">AI 模型配置</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">主模型</label>
+              <label className="block text-sm text-gray-600 mb-1">LLM 提供商</label>
+              <select value={config.llm_provider}
+                onChange={e => {
+                  const p = providers.find(x => x.id === e.target.value);
+                  setConfig({
+                    ...config,
+                    llm_provider: e.target.value,
+                    llm_model: p?.default_model || "",
+                  });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none bg-white">
+                {providers.map(p => (
+                  <option key={p.id} value={p.id} disabled={!p.available}>
+                    {p.label} {!p.available && "（未配置 API Key）"}
+                  </option>
+                ))}
+              </select>
+              {currentProvider && !currentProvider.available && (
+                <p className="text-xs text-amber-600 mt-1">⚠️ 此 Provider 未配置 API Key，请在 .env 文件中添加</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">模型</label>
               <select value={config.llm_model}
                 onChange={e => setConfig({ ...config, llm_model: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none">
-                <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (推荐)</option>
-                <option value="claude-opus-4-6">Claude Opus 4.6 (最强)</option>
+                disabled={!currentProvider || currentProvider.models.length === 0}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none bg-white disabled:bg-gray-50">
+                {currentProvider?.models.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -86,7 +142,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <button className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+        <button onClick={handleSave}
+          className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
           保存设置
         </button>
       </div>
