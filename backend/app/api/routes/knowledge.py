@@ -398,3 +398,167 @@ async def upload_roi_excel(
         pass
 
     return {"imported": len(entries), "ids": created_ids, "preview": [{"title": e.title} for e in entries[:5]]}
+
+
+@router.post("/upload-cost-model")
+async def upload_cost_model(
+    file: UploadFile = File(...),
+    project_name: str = Query("", description="Project name"),
+    client_name: str = Query("", description="Client name"),
+    industry: str = Query("", description="Industry e.g. 汽车备件"),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Upload a Cost Model Excel file and convert to a cost_model knowledge entry.
+    
+    Looks for 'P&L Sheet' or similar to extract revenue/cost categories per year.
+    Creates ONE comprehensive entry with all cost components.
+    """
+    import pandas as pd
+    import io
+
+    file_bytes = await file.read()
+    try:
+        xl = pd.ExcelFile(io.BytesIO(file_bytes))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Excel file: {e}")
+
+    # Find P&L sheet
+    pl_sheet = None
+    for s in xl.sheet_names:
+        if s.lower() in ("p&l sheet", "p&l", "pnl", "profit", "损益"):
+            pl_sheet = s
+            break
+
+    if not pl_sheet:
+        raise HTTPException(status_code=400, detail="Cannot find P&L sheet in Excel")
+
+    df = pd.read_excel(xl, pl_sheet)
+
+    # Extract revenue and cost line items (label in col 1, year1 value in col 2)
+    revenue_items = []
+    cost_items = []
+    section = "revenue"
+
+    for _, row in df.iterrows():
+        if len(row) < 3:
+            continue
+        label = row.iloc[1]
+        y1 = row.iloc[2]
+        if pd.isna(label) or not isinstance(label, str):
+            continue
+        label_str = str(label).strip()
+        if len(label_str) < 3:
+            continue
+
+        # Section detection
+        upper = label_str.upper()
+        if "DIRECT COST" in upper or "TOTAL COSTS" in upper:
+            section = "cost"
+        if "TOTAL REV" in upper:
+            section = "revenue"
+
+        # Try to convert y1 to number
+        try:
+            y1_num = float(y1) if pd.notna(y1) else None
+        except (ValueError, TypeError):
+            y1_num = None
+
+        if y1_num is None:
+            continue
+
+        item = {"label": label_str, "y1_value": y1_num}
+        if section == "revenue":
+            revenue_items.append(item)
+        else:
+            cost_items.append(item)
+
+    if not revenue_items and not cost_items:
+        raise HTTPException(status_code=400, detail="No valid P&L data extracted")
+
+    # Build content
+    title = f"{client_name or '未命名'} - 成本模型"
+    if project_name:
+        title = f"{client_name} - {project_name} - 成本模型" if client_name else f"{project_name} - 成本模型"
+
+    lines = [
+        f"客户：{client_name}" if client_name else "",
+        f"项目：{project_name}" if project_name else "",
+        f"行业：{industry}" if industry else "",
+        "",
+        "## 收入项 (Year 1)",
+    ]
+    total_rev = 0
+    for item in revenue_items:
+        lines.append(f"- {item['label']}: ¥{item['y1_value']:,.0f}")
+        total_rev += item['y1_value']
+
+    lines.append("")
+    lines.append("## 成本项 (Year 1)")
+    total_cost = 0
+    for item in cost_items:
+        lines.append(f"- {item['label']}: ¥{item['y1_value']:,.0f}")
+        total_cost += item['y1_value']
+
+    lines.append("")
+    lines.append(f"## 汇总")
+    lines.append(f"- 收入总计: ¥{total_rev:,.0f}")
+    lines.append(f"- 成本总计: ¥{total_cost:,.0f}")
+    lines.append(f"- 毛利: ¥{total_rev - total_cost:,.0f}")
+    if total_rev > 0:
+        margin = (total_rev - total_cost) / total_rev * 100
+        lines.append(f"- 毛利率: {margin:.1f}%")
+
+    content = "\n".join(l for l in lines if l != "" or True)
+
+    metadata = {
+        "客户": client_name,
+        "项目": project_name,
+        "行业": industry,
+        "年度收入": total_rev,
+        "年度成本": total_cost,
+        "毛利": total_rev - total_cost,
+        "收入项数": len(revenue_items),
+        "成本项数": len(cost_items),
+    }
+
+    tags = ["成本模型", "P&L"]
+    if client_name:
+        tags.append(client_name)
+    if industry:
+        tags.append(industry)
+
+    entry = KnowledgeEntry(
+        category="cost_model",
+        title=title,
+        content=content,
+        tags=tags,
+        metadata_=metadata,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Index in vector DB
+    try:
+        ks = get_knowledge_service()
+        await ks.index_documents(COLLECTION_NAME, [{
+            "id": str(entry.id),
+            "content": f"{entry.title}\n\n{entry.content}",
+            "category": entry.category,
+            "tags": entry.tags,
+            "metadata": {"title": entry.title},
+        }])
+    except Exception:
+        pass
+
+    return {
+        "imported": 1,
+        "id": str(entry.id),
+        "title": entry.title,
+        "summary": {
+            "revenue_items": len(revenue_items),
+            "cost_items": len(cost_items),
+            "total_revenue": total_rev,
+            "total_cost": total_cost,
+        }
+    }
