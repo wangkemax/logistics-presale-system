@@ -288,15 +288,66 @@ export default function KnowledgePage() {
           <div className="flex-1 bg-white rounded-xl border border-gray-200 p-6">
             {selected ? (
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
-                    {CATEGORIES.find(c => c.id === selected.category)?.label || selected.category}
-                  </span>
-                  {"score" in selected && selected.score !== undefined && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-600">
-                      匹配度 {(selected.score * 100).toFixed(1)}%
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                      {CATEGORIES.find(c => c.id === selected.category)?.label || selected.category}
                     </span>
-                  )}
+                    {"score" in selected && selected.score !== undefined && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-600">
+                        匹配度 {(selected.score * 100).toFixed(1)}%
+                      </span>
+                    )}
+                    {(selected as any).has_file && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                        📎 {(selected as any).file_name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(selected as any).has_file && (
+                      <a
+                        href={kApi.downloadUrl(selected.id) + `?token=${typeof window !== "undefined" ? localStorage.getItem("token") : ""}`}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const token = localStorage.getItem("token");
+                            const res = await fetch(kApi.downloadUrl(selected.id), {
+                              headers: { Authorization: `Bearer ${token}` },
+                            });
+                            if (!res.ok) throw new Error("下载失败");
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = (selected as any).file_name || "download";
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          } catch (err: any) {
+                            alert("下载失败: " + err.message);
+                          }
+                        }}
+                        className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 cursor-pointer"
+                      >
+                        📥 下载源文件
+                      </a>
+                    )}
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`确定要删除「${selected.title}」吗？此操作不可恢复。`)) return;
+                        try {
+                          await kApi.delete(selected.id);
+                          setSelectedId(null);
+                          loadEntries();
+                        } catch (e: any) {
+                          alert("删除失败: " + e.message);
+                        }
+                      }}
+                      className="text-xs px-3 py-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100"
+                    >
+                      🗑️ 删除
+                    </button>
+                  </div>
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900 mt-2 mb-4">{selected.title}</h2>
                 <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed">

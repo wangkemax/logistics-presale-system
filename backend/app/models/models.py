@@ -192,6 +192,8 @@ class KnowledgeEntry(Base):
     tags = Column(JSON, nullable=True)  # ["warehouse", "AGV", "cold-chain"]
     metadata_ = Column("metadata", JSON, nullable=True)
     embedding_id = Column(String(255), nullable=True)  # vector DB reference
+    file_path = Column(String(500), nullable=True)  # path to original uploaded file
+    file_name = Column(String(500), nullable=True)  # original filename
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

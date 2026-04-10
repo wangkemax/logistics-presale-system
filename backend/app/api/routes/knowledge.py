@@ -1,9 +1,13 @@
 """Knowledge base management and search API routes."""
 
+import os
+import uuid as uuid_lib
+from pathlib import Path
 from uuid import UUID
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -17,6 +21,19 @@ from pydantic import BaseModel, Field
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 COLLECTION_NAME = "logistics_knowledge"
+
+# Directory for storing original uploaded knowledge source files
+KNOWLEDGE_FILES_DIR = Path("/app/uploads/knowledge")
+KNOWLEDGE_FILES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _save_uploaded_file(file_bytes: bytes, original_filename: str) -> tuple[str, str]:
+    """Save uploaded file to disk and return (file_path, original_filename)."""
+    safe_name = os.path.basename(original_filename or "unknown")
+    unique_name = f"{uuid_lib.uuid4().hex}_{safe_name}"
+    file_path = KNOWLEDGE_FILES_DIR / unique_name
+    file_path.write_bytes(file_bytes)
+    return str(file_path), safe_name
 
 
 # ── Schemas ──
@@ -38,6 +55,8 @@ class KnowledgeResponse(BaseModel):
     content: str
     tags: list[str] | None
     is_active: bool
+    file_name: str | None = None
+    has_file: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -109,7 +128,39 @@ async def list_entries(
     q = q.order_by(KnowledgeEntry.created_at.desc()).offset(offset).limit(limit)
 
     result = await db.execute(q)
-    return result.scalars().all()
+    entries = result.scalars().all()
+    return [
+        KnowledgeResponse(
+            id=e.id, category=e.category, title=e.title, content=e.content,
+            tags=e.tags, is_active=e.is_active,
+            file_name=e.file_name, has_file=bool(e.file_path),
+        )
+        for e in entries
+    ]
+
+
+@router.get("/{entry_id}/download")
+async def download_entry_file(
+    entry_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Download the original source file of a knowledge entry."""
+    result = await db.execute(
+        select(KnowledgeEntry).where(KnowledgeEntry.id == entry_id)
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if not entry.file_path:
+        raise HTTPException(status_code=404, detail="No source file for this entry")
+    if not os.path.exists(entry.file_path):
+        raise HTTPException(status_code=404, detail="Source file no longer exists on disk")
+    return FileResponse(
+        entry.file_path,
+        filename=entry.file_name or "download",
+        media_type="application/octet-stream",
+    )
 
 
 @router.get("/{entry_id}", response_model=KnowledgeResponse)
@@ -125,7 +176,11 @@ async def get_entry(
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
-    return entry
+    return KnowledgeResponse(
+        id=entry.id, category=entry.category, title=entry.title, content=entry.content,
+        tags=entry.tags, is_active=entry.is_active,
+        file_name=entry.file_name, has_file=bool(entry.file_path),
+    )
 
 
 @router.delete("/{entry_id}", status_code=204)
@@ -264,6 +319,9 @@ async def upload_roi_excel(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Excel file: {e}")
 
+    # Save original file to disk
+    saved_path, original_name = _save_uploaded_file(file_bytes, file.filename or "roi.xlsx")
+
     # Find the summary sheet (List, Summary, 总览, etc.)
     summary_sheet = None
     for s in xl.sheet_names:
@@ -373,6 +431,8 @@ async def upload_roi_excel(
             content=content,
             tags=tags,
             metadata_=metadata,
+            file_path=saved_path,
+            file_name=original_name,
         )
         db.add(entry)
         entries.append(entry)
@@ -422,6 +482,9 @@ async def upload_cost_model(
         xl = pd.ExcelFile(io.BytesIO(file_bytes))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Excel file: {e}")
+
+    # Save original file
+    saved_path, original_name = _save_uploaded_file(file_bytes, file.filename or "cost_model.xlsx")
 
     # Find P&L sheet
     pl_sheet = None
@@ -534,6 +597,8 @@ async def upload_cost_model(
         content=content,
         tags=tags,
         metadata_=metadata,
+        file_path=saved_path,
+        file_name=original_name,
     )
     db.add(entry)
     await db.flush()
@@ -591,6 +656,9 @@ async def upload_logistics_case(
     if not text or len(text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Document is empty or too short")
 
+    # Save original file
+    saved_path, original_name = _save_uploaded_file(file_bytes, filename)
+
     # Limit content to 50K chars for storage (still enough for RAG)
     content = text[:50000]
     if len(text) > 50000:
@@ -617,6 +685,8 @@ async def upload_logistics_case(
         content=content,
         tags=tags,
         metadata_=metadata,
+        file_path=saved_path,
+        file_name=original_name,
     )
     db.add(entry)
     await db.flush()

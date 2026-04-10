@@ -225,6 +225,8 @@ export interface KnowledgeEntry {
   content: string;
   tags: string[] | null;
   is_active: boolean;
+  file_name?: string | null;
+  has_file?: boolean;
 }
 
 export interface SearchResult {
@@ -257,6 +259,12 @@ export const knowledge = {
       method: "POST",
       body: JSON.stringify({ entries }),
     }),
+
+  delete: (id: string) =>
+    request<void>(`/api/v1/knowledge/${id}`, { method: "DELETE" }),
+
+  downloadUrl: (id: string) =>
+    `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/knowledge/${id}/download`,
 };
 
 // ── LLM Providers ──
