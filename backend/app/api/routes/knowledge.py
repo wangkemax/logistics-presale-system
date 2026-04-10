@@ -562,3 +562,81 @@ async def upload_cost_model(
             "total_cost": total_cost,
         }
     }
+
+
+@router.post("/upload-logistics-case")
+async def upload_logistics_case(
+    file: UploadFile = File(...),
+    title: str = Query("", description="Case title"),
+    client_name: str = Query("", description="Client name"),
+    industry: str = Query("", description="Industry"),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Upload a logistics case document (PDF/Word/TXT/MD) and add to knowledge base.
+    
+    Extracts text content and stores as logistics_case entry.
+    For long documents, the full text is preserved (used for RAG retrieval).
+    """
+    from app.services.document_service import extract_text_from_file
+
+    file_bytes = await file.read()
+    filename = file.filename or "case.pdf"
+
+    try:
+        text = await extract_text_from_file(file_bytes, filename)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to extract text: {e}")
+
+    if not text or len(text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Document is empty or too short")
+
+    # Limit content to 50K chars for storage (still enough for RAG)
+    content = text[:50000]
+    if len(text) > 50000:
+        content += f"\n\n[文档已截断，原文共 {len(text)} 字符]"
+
+    auto_title = title or f"{client_name or '未命名'} - {filename}"
+
+    metadata = {
+        "客户": client_name,
+        "行业": industry,
+        "原始文件名": filename,
+        "文档字数": len(text),
+    }
+
+    tags = ["物流案例"]
+    if client_name:
+        tags.append(client_name)
+    if industry:
+        tags.append(industry)
+
+    entry = KnowledgeEntry(
+        category="logistics_case",
+        title=auto_title,
+        content=content,
+        tags=tags,
+        metadata_=metadata,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Index in vector DB
+    try:
+        ks = get_knowledge_service()
+        await ks.index_documents(COLLECTION_NAME, [{
+            "id": str(entry.id),
+            "content": f"{entry.title}\n\n{entry.content}",
+            "category": entry.category,
+            "tags": entry.tags,
+            "metadata": {"title": entry.title},
+        }])
+    except Exception:
+        pass
+
+    return {
+        "imported": 1,
+        "id": str(entry.id),
+        "title": entry.title,
+        "char_count": len(text),
+    }

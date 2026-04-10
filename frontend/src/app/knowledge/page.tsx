@@ -26,6 +26,43 @@ export default function KnowledgePage() {
   const [showUpload, setShowUpload] = useState(false);
   const [costForm, setCostForm] = useState({ project_name: "", client_name: "", industry: "" });
   const [showCostUpload, setShowCostUpload] = useState(false);
+  const [caseForm, setCaseForm] = useState({ title: "", client_name: "", industry: "" });
+  const [showCaseUpload, setShowCaseUpload] = useState(false);
+
+  async function handleCaseUpload(file: File) {
+    setUploading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("file", file);
+      const params = new URLSearchParams({
+        title: caseForm.title,
+        client_name: caseForm.client_name,
+        industry: caseForm.industry,
+      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/knowledge/upload-logistics-case?${params}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "上传失败");
+      }
+      const result = await res.json();
+      alert(`物流案例导入成功\n标题: ${result.title}\n字符数: ${result.char_count.toLocaleString()}`);
+      setShowCaseUpload(false);
+      setCaseForm({ title: "", client_name: "", industry: "" });
+      loadEntries();
+    } catch (e: any) {
+      alert("上传失败: " + e.message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleCostModelUpload(file: File) {
     setUploading(true);
@@ -145,6 +182,10 @@ export default function KnowledgePage() {
             <h1 className="text-lg font-semibold text-gray-900">知识库</h1>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowCaseUpload(true)}
+              className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700">
+              📄 上传物流案例
+            </button>
             <button onClick={() => setShowCostUpload(true)}
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
               💰 上传 Cost Model
@@ -419,6 +460,68 @@ export default function KnowledgePage() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => { setShowCostUpload(false); setCostForm({ project_name: "", client_name: "", industry: "" }); }}
+                disabled={uploading}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+              >
+                {uploading ? "上传中..." : "取消"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Upload Logistics Case Modal */}
+      {showCaseUpload && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
+            <h3 className="text-lg font-semibold mb-2">上传物流案例文档</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              支持 PDF / Word / TXT / MD 格式。可上传历史中标提案、项目方案、客户案例等。系统自动提取文本入库，供 Pipeline RAG 检索参考。
+            </p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">案例标题（可选，留空使用文件名）</label>
+                <input
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                  value={caseForm.title}
+                  onChange={e => setCaseForm({ ...caseForm, title: e.target.value })}
+                  placeholder="例：博世无锡仓储项目方案"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">客户名称</label>
+                <input
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                  value={caseForm.client_name}
+                  onChange={e => setCaseForm({ ...caseForm, client_name: e.target.value })}
+                  placeholder="例：博世"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">行业</label>
+                <input
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                  value={caseForm.industry}
+                  onChange={e => setCaseForm({ ...caseForm, industry: e.target.value })}
+                  placeholder="例：汽车零部件"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">选择文档</label>
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.doc,.txt,.md"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) handleCaseUpload(f);
+                  }}
+                  disabled={uploading}
+                  className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700 file:font-medium hover:file:bg-orange-100"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setShowCaseUpload(false); setCaseForm({ title: "", client_name: "", industry: "" }); }}
                 disabled={uploading}
                 className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50"
               >
