@@ -33,7 +33,11 @@ async function request<T>(
     throw new ApiError(body.detail || "Request failed", res.status);
   }
 
-  return res.json();
+  // Handle 204 No Content or empty responses
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text);
 }
 
 // ── Auth ──
