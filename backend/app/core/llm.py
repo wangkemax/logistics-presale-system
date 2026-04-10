@@ -135,7 +135,18 @@ def _call_anthropic(api_key: str, model: str, system_prompt: str,
     )
     if response.status_code == 200:
         data = response.json()
-        return {"text": data["content"][0]["text"], "usage": data.get("usage", {})}
+        # MiniMax/Claude can return multiple content blocks: text, thinking, tool_use
+        # We need to extract the text content from the first text block
+        content_blocks = data.get("content", [])
+        text_parts = []
+        for block in content_blocks:
+            block_type = block.get("type", "")
+            if block_type == "text":
+                text_parts.append(block.get("text", ""))
+        if not text_parts:
+            return {"error": f"No text content in response: {str(data)[:300]}",
+                    "status": 200, "retry_after": 0}
+        return {"text": "\n".join(text_parts), "usage": data.get("usage", {})}
     return {"error": response.text[:500], "status": response.status_code,
             "retry_after": int(response.headers.get("retry-after", 30)) if response.status_code == 429 else 0}
 
