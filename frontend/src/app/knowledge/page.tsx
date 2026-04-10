@@ -21,6 +21,43 @@ export default function KnowledgePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ category: "logistics_case", title: "", content: "", tags: "" });
+  const [uploading, setUploading] = useState(false);
+  const [uploadForm, setUploadForm] = useState({ project_name: "", client_name: "" });
+  const [showUpload, setShowUpload] = useState(false);
+
+  async function handleExcelUpload(file: File) {
+    setUploading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("file", file);
+      const params = new URLSearchParams({
+        project_name: uploadForm.project_name,
+        client_name: uploadForm.client_name,
+      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/knowledge/upload-roi-excel?${params}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "上传失败");
+      }
+      const result = await res.json();
+      alert(`成功导入 ${result.imported} 条知识条目`);
+      setShowUpload(false);
+      setUploadForm({ project_name: "", client_name: "" });
+      loadEntries();
+    } catch (e: any) {
+      alert("上传失败: " + e.message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => { loadEntries(); }, [category]);
 
@@ -70,10 +107,16 @@ export default function KnowledgePage() {
             <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">← 首页</Link>
             <h1 className="text-lg font-semibold text-gray-900">知识库</h1>
           </div>
-          <button onClick={() => setShowAdd(true)}
-            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
-            + 添加知识
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowUpload(true)}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+              📊 上传 ROI Excel
+            </button>
+            <button onClick={() => setShowAdd(true)}
+              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
+              + 添加知识
+            </button>
+          </div>
         </div>
       </header>
 
@@ -224,6 +267,60 @@ export default function KnowledgePage() {
                 className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
               <button onClick={handleAdd}
                 className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">添加</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Excel Modal */}
+      {showUpload && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
+            <h3 className="text-lg font-semibold mb-2">上传 ROI Excel 文件</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              支持包含 List/Summary 工作表的 ROI 模型 Excel。系统会自动提取每个设备的投资、IRR、NPV、回本周期等数据并转为知识条目。
+            </p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">客户名称</label>
+                <input
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={uploadForm.client_name}
+                  onChange={e => setUploadForm({ ...uploadForm, client_name: e.target.value })}
+                  placeholder="例：上海迪士尼"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">项目名称</label>
+                <input
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={uploadForm.project_name}
+                  onChange={e => setUploadForm({ ...uploadForm, project_name: e.target.value })}
+                  placeholder="例：迪士尼仓储自动化升级"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">选择 Excel 文件</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) handleExcelUpload(f);
+                  }}
+                  disabled={uploading}
+                  className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium hover:file:bg-indigo-100"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setShowUpload(false); setUploadForm({ project_name: "", client_name: "" }); }}
+                disabled={uploading}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+              >
+                {uploading ? "上传中..." : "取消"}
+              </button>
             </div>
           </div>
         </div>
