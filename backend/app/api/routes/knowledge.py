@@ -221,12 +221,15 @@ async def delete_entry(
 @router.post("/search", response_model=list[SearchResult])
 async def search_knowledge(
     request: SearchRequest,
+    db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """Semantic search across the knowledge base."""
-    ks = get_knowledge_service()
-
+    """Search knowledge base. Uses Milvus vector search if available, 
+    otherwise falls back to PostgreSQL keyword search."""
+    
+    # Try Milvus vector search first
     try:
+        ks = get_knowledge_service()
         if request.keyword:
             results = await ks.hybrid_search(
                 collection_name=COLLECTION_NAME,
@@ -242,19 +245,63 @@ async def search_knowledge(
                 top_k=request.top_k,
                 filters={"category": request.category} if request.category else None,
             )
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Search service unavailable: {str(e)}")
-
+        if results:
+            return [
+                SearchResult(
+                    id=r["id"],
+                    title=r.get("metadata", {}).get("title", ""),
+                    content=r["content"][:500],
+                    score=r["score"],
+                    category=r["category"],
+                    tags=r["tags"],
+                )
+                for r in results
+            ]
+    except Exception:
+        pass  # Fall through to keyword search
+    
+    # Fallback: PostgreSQL ILIKE keyword search across title + content + tags
+    from sqlalchemy import or_, cast, String
+    
+    query = request.query.strip()
+    if not query:
+        return []
+    
+    # Build search query — match in title, content, or tags
+    pattern = f"%{query}%"
+    q = select(KnowledgeEntry).where(
+        KnowledgeEntry.is_active == True,
+        or_(
+            KnowledgeEntry.title.ilike(pattern),
+            KnowledgeEntry.content.ilike(pattern),
+            cast(KnowledgeEntry.tags, String).ilike(pattern),
+        )
+    )
+    if request.category:
+        q = q.where(KnowledgeEntry.category == request.category)
+    q = q.limit(request.top_k)
+    
+    result = await db.execute(q)
+    entries = result.scalars().all()
+    
+    # Score by simple keyword frequency
+    def calc_score(e: KnowledgeEntry) -> float:
+        text = f"{e.title} {e.content}".lower()
+        q_lower = query.lower()
+        title_match = 0.5 if q_lower in e.title.lower() else 0.0
+        content_count = text.count(q_lower)
+        return min(1.0, title_match + content_count * 0.1)
+    
     return [
         SearchResult(
-            id=r["id"],
-            title=r.get("metadata", {}).get("title", ""),
-            content=r["content"][:500],
-            score=r["score"],
-            category=r["category"],
-            tags=r["tags"],
+            id=str(e.id),
+            title=e.title,
+            content=e.content[:500],
+            score=calc_score(e),
+            category=e.category,
+            tags=",".join(e.tags) if isinstance(e.tags, list) else (e.tags or ""),
         )
-        for r in results
+        for e in sorted(entries, key=calc_score, reverse=True)
     ]
 
 
