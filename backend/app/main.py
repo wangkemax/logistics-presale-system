@@ -23,6 +23,7 @@ from app.api.routes import batch as batch_routes
 from app.api.routes import preferences as preferences_routes
 from app.api.routes import approval as approval_routes
 from app.api.routes import analytics as analytics_routes
+from app.api.routes import quality as quality_routes
 from app.services.websocket_service import router as ws_router, manager as ws_manager
 
 settings = get_settings()
@@ -86,6 +87,7 @@ app.include_router(batch_routes.router, prefix="/api/v1")
 app.include_router(preferences_routes.router, prefix="/api/v1")
 app.include_router(approval_routes.router, prefix="/api/v1")
 app.include_router(analytics_routes.router, prefix="/api/v1")
+app.include_router(quality_routes.router, prefix="/api/v1")
 app.include_router(ws_router)
 
 

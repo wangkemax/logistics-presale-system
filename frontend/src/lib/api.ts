@@ -175,6 +175,22 @@ export const projects = {
       }
     ),
 
+  analyzeQuality: (projectId: string) =>
+    request<{
+      project_id: string;
+      overall_score: number;
+      verdict: "PASS" | "CONDITIONAL_PASS" | "FAIL";
+      summary: { p0_count: number; p1_count: number; p2_count: number; total_issues: number };
+      stage_scores: Array<{
+        stage: number;
+        name: string;
+        score: number;
+        metrics: Record<string, any>;
+        issues: Array<{ severity: string; msg: string }>;
+      }>;
+      consistency_issues: Array<{ severity: string; type: string; msg: string }>;
+    }>(`/api/v1/projects/${projectId}/quality/analyze`),
+
   getStages: (projectId: string) =>
     request<Stage[]>(`/api/v1/projects/${projectId}/stages`),
 

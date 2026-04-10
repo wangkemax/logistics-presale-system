@@ -385,7 +385,9 @@ export default function ProjectDetailPage() {
   const [provider, setProvider] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [providers, setProviders] = useState<any[]>([]);
-  const [tab, setTab] = useState<"pipeline" | "quotation" | "qa" | "documents">("pipeline");
+  const [tab, setTab] = useState<"pipeline" | "quotation" | "qa" | "documents" | "quality">("pipeline");
+  const [qualityReport, setQualityReport] = useState<any>(null);
+  const [qualityLoading, setQualityLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [generatingQuote, setGeneratingQuote] = useState(false);
   const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
@@ -737,6 +739,7 @@ export default function ProjectDetailPage() {
             ["pipeline", "流水线"],
             ["quotation", "报价"],
             ["documents", "文档生成"],
+            ["quality", "📊 质量分析"],
             ["qa", `QA (${qaIssues.length}${p0Count > 0 ? ` · ${p0Count} P0` : ""})`],
           ] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key as any)}
@@ -950,6 +953,150 @@ export default function ProjectDetailPage() {
               </div>
             ))}
           </div>
+          </div>
+        )}
+
+        {/* ═══ Quality Analysis Tab ═══ */}
+        {tab === "quality" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">质量分析报告</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">基于规则的程序化质量检查（不消耗 LLM 调用）</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    setQualityLoading(true);
+                    try {
+                      const r = await api.analyzeQuality(id);
+                      setQualityReport(r);
+                    } catch (e: any) {
+                      alert("分析失败: " + e.message);
+                    } finally {
+                      setQualityLoading(false);
+                    }
+                  }}
+                  disabled={qualityLoading}
+                  className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50">
+                  {qualityLoading ? "分析中..." : qualityReport ? "🔄 重新分析" : "▶️ 开始分析"}
+                </button>
+              </div>
+
+              {!qualityReport && (
+                <p className="text-sm text-gray-400 text-center py-12">
+                  点击「开始分析」生成质量报告
+                </p>
+              )}
+
+              {qualityReport && (
+                <div className="space-y-6">
+                  {/* Overall verdict */}
+                  <div className={`rounded-xl p-5 border-2 ${
+                    qualityReport.verdict === "PASS" ? "bg-green-50 border-green-300" :
+                    qualityReport.verdict === "CONDITIONAL_PASS" ? "bg-yellow-50 border-yellow-300" :
+                    "bg-red-50 border-red-300"
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">总体评分</p>
+                        <p className="text-4xl font-bold text-gray-900">{qualityReport.overall_score}</p>
+                        <p className={`text-sm mt-1 font-medium ${
+                          qualityReport.verdict === "PASS" ? "text-green-700" :
+                          qualityReport.verdict === "CONDITIONAL_PASS" ? "text-yellow-700" : "text-red-700"
+                        }`}>
+                          {qualityReport.verdict === "PASS" ? "✅ 通过" :
+                           qualityReport.verdict === "CONDITIONAL_PASS" ? "⚠️ 有条件通过" : "❌ 不通过"}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div className="px-4 py-2 bg-red-100 rounded-lg">
+                          <div className="text-2xl font-bold text-red-700">{qualityReport.summary.p0_count}</div>
+                          <div className="text-xs text-red-600">P0 致命</div>
+                        </div>
+                        <div className="px-4 py-2 bg-orange-100 rounded-lg">
+                          <div className="text-2xl font-bold text-orange-700">{qualityReport.summary.p1_count}</div>
+                          <div className="text-xs text-orange-600">P1 严重</div>
+                        </div>
+                        <div className="px-4 py-2 bg-yellow-100 rounded-lg">
+                          <div className="text-2xl font-bold text-yellow-700">{qualityReport.summary.p2_count}</div>
+                          <div className="text-xs text-yellow-600">P2 一般</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stage-by-stage scores */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">分阶段评分</h4>
+                    <div className="space-y-3">
+                      {qualityReport.stage_scores.map((s: any) => (
+                        <div key={s.stage} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs px-2 py-1 bg-gray-100 rounded font-mono">Stage {s.stage}</span>
+                              <span className="font-medium text-gray-900">{s.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-32 bg-gray-100 rounded-full h-2">
+                                <div className={`h-2 rounded-full ${
+                                  s.score >= 80 ? "bg-green-500" :
+                                  s.score >= 60 ? "bg-yellow-500" : "bg-red-500"
+                                }`} style={{ width: `${s.score}%` }} />
+                              </div>
+                              <span className={`text-lg font-bold ${
+                                s.score >= 80 ? "text-green-600" :
+                                s.score >= 60 ? "text-yellow-600" : "text-red-600"
+                              }`}>{s.score}</span>
+                            </div>
+                          </div>
+                          {Object.keys(s.metrics).length > 0 && (
+                            <div className="grid grid-cols-3 gap-2 text-xs text-gray-500 mb-2 pl-2">
+                              {Object.entries(s.metrics).map(([k, v]) => (
+                                <div key={k}>
+                                  {k}: <span className="text-gray-700 font-medium">{String(v)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {s.issues.length > 0 && (
+                            <div className="space-y-1 mt-2">
+                              {s.issues.map((issue: any, i: number) => (
+                                <div key={i} className="flex items-start gap-2 text-sm">
+                                  <span className={`text-xs px-1.5 py-0.5 rounded font-semibold mt-0.5 ${
+                                    issue.severity === "P0" ? "bg-red-100 text-red-700" :
+                                    issue.severity === "P1" ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"
+                                  }`}>{issue.severity}</span>
+                                  <span className="text-gray-700">{issue.msg}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Cross-stage consistency */}
+                  {qualityReport.consistency_issues.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">跨阶段一致性检查</h4>
+                      <div className="space-y-2">
+                        {qualityReport.consistency_issues.map((issue: any, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-sm p-3 bg-gray-50 rounded-lg">
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                              issue.severity === "P0" ? "bg-red-100 text-red-700" :
+                              issue.severity === "P1" ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"
+                            }`}>{issue.severity}</span>
+                            <span className="text-gray-700">{issue.msg}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
