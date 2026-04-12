@@ -47,7 +47,8 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",")]
+        origins = [o.strip() for o in self.cors_origins.split(",")]
+        return origins
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
