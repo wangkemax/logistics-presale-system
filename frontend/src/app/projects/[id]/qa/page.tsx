@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { projects as pApi, type Project, type Stage, type QAIssue } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { projects as pApi, type Project, type Stage, type QAIssue, API_BASE } from "@/lib/api";
 
 const SEVERITY_CONFIG = {
   P0: { label: "致命", bg: "bg-red-100", text: "text-red-800", border: "border-red-200", dot: "bg-red-500" },

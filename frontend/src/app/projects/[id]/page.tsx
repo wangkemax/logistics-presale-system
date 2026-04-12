@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { projects as api, quotations as qApi, llmProviders, type Project, type Stage, type QAIssue, type Quotation } from "@/lib/api";
+import { projects as api, quotations as qApi, llmProviders, type Project, type Stage, type QAIssue, type Quotation, API_BASE } from "@/lib/api";
 import { useWebSocket } from "@/lib/useWebSocket";
 
 const STAGE_NAMES = [
@@ -566,7 +566,7 @@ export default function ProjectDetailPage() {
     setGeneratingDoc(docType);
     try {
       const token = localStorage.getItem("token");
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiBase = API_BASE;
       const res = await fetch(
         `${apiBase}/api/v1/projects/${id}/documents/generate`,
         {
@@ -908,7 +908,7 @@ export default function ProjectDetailPage() {
                       setGeneratingDoc("bundle");
                       const token = localStorage.getItem("token");
                       const res = await fetch(
-                        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/projects/${id}/export-bundle`,
+                        `${API_BASE}/api/v1/projects/${id}/export-bundle`,
                         { headers: { Authorization: `Bearer ${token}` } }
                       );
                       if (!res.ok) throw new Error("打包失败");

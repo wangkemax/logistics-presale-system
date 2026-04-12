@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { projects as pApi, quotations as qApi, type Project, type Quotation } from "@/lib/api";
+import { projects as pApi, quotations as qApi, type Project, type Quotation, API_BASE } from "@/lib/api";
 
 interface CostParams {
   warehouseArea: number;
@@ -218,7 +218,7 @@ export default function QuotationWorkbenchPage() {
     setSaving(true);
     try {
       const token = localStorage.getItem("token");
-      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API = API_BASE;
       await fetch(`${API}/api/v1/projects/${id}/quotations`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

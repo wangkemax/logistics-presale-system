@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   async rewrites() {
     // Server-side rewrite uses Docker internal network (backend:8000)
     // NEXT_PUBLIC_API_URL is for client-side direct calls (localhost:8000)

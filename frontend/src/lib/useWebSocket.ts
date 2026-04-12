@@ -3,8 +3,7 @@
  * Auto-reconnects on disconnect. Provides typed event callbacks.
  */
 import { useEffect, useRef, useCallback, useState } from "react";
-
-const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace("http", "ws");
+import { WS_BASE } from "@/lib/api";
 
 export interface WSEvent {
   event: string;

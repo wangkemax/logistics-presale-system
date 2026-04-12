@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { knowledge as kApi, type KnowledgeEntry, type SearchResult } from "@/lib/api";
+import { knowledge as kApi, type KnowledgeEntry, type SearchResult, API_BASE } from "@/lib/api";
 
 const CATEGORIES = [
   { id: "", label: "全部", icon: "📚" },
@@ -41,7 +41,7 @@ export default function KnowledgePage() {
         industry: caseForm.industry,
       });
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/knowledge/upload-logistics-case?${params}`,
+        `${API_BASE}/api/v1/knowledge/upload-logistics-case?${params}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -76,7 +76,7 @@ export default function KnowledgePage() {
         industry: costForm.industry,
       });
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/knowledge/upload-cost-model?${params}`,
+        `${API_BASE}/api/v1/knowledge/upload-cost-model?${params}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -110,7 +110,7 @@ export default function KnowledgePage() {
         client_name: uploadForm.client_name,
       });
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/knowledge/upload-roi-excel?${params}`,
+        `${API_BASE}/api/v1/knowledge/upload-roi-excel?${params}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },

@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { projects as pApi, quotations as qApi, type Project, type Quotation } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { projects as pApi, quotations as qApi, type Project, type Quotation, API_BASE } from "@/lib/api";
 
 interface SchemeData {
   scheme_id: string;

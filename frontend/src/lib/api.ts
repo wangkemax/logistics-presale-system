@@ -2,7 +2,14 @@
  * API Client — typed wrapper around fetch for backend communication.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// In production: NEXT_PUBLIC_API_URL is empty → relative paths → proxied via Next.js rewrites
+// In development: NEXT_PUBLIC_API_URL = "http://localhost:8000" → direct backend calls
+export const API_BASE = typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL !== undefined
+  ? process.env.NEXT_PUBLIC_API_URL
+  : "http://localhost:8000";
+
+// WebSocket base URL — derives from API_BASE
+export const WS_BASE = API_BASE ? API_BASE.replace(/^http/, "ws") : `ws://${typeof window !== "undefined" ? window.location.host : "localhost:8000"}`;
 
 class ApiError extends Error {
   status: number;
@@ -298,7 +305,7 @@ export const knowledge = {
     request<void>(`/api/v1/knowledge/${id}`, { method: "DELETE" }),
 
   downloadUrl: (id: string) =>
-    `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/knowledge/${id}/download`,
+    `${API_BASE}/api/v1/knowledge/${id}/download`,
 };
 
 // ── LLM Providers ──
