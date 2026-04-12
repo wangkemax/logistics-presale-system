@@ -2,30 +2,14 @@
  * API Client — typed wrapper around fetch for backend communication.
  */
 
-// Auto-detect backend URL:
-// 1. If NEXT_PUBLIC_API_URL is explicitly set → use it
-// 2. In browser → use same hostname + port 8000 (no reverse proxy needed)
-// 3. Server-side → use Docker internal network
-function getApiBase(): string {
-  // Explicitly configured
-  if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  // Browser: auto-detect from current hostname
-  if (typeof window !== "undefined") {
-    const proto = window.location.protocol;
-    const host = window.location.hostname;
-    return `${proto}//${host}:8000`;
-  }
-  // Server-side (Next.js SSR): use Docker internal address
-  return process.env?.BACKEND_INTERNAL_URL || "http://backend:8000";
-}
+// Single-port mode: all API requests use relative paths
+// Nginx proxies /api/* and /ws/* to the backend container
+// No need to expose backend port separately
+export const API_BASE = "";
 
-export const API_BASE = getApiBase();
-
-// WebSocket base URL — derives from API_BASE
+// WebSocket: same host as the page, Nginx proxies /ws/* to backend
 export const WS_BASE = typeof window !== "undefined"
-  ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8000`
+  ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
   : "ws://backend:8000";
 
 class ApiError extends Error {
